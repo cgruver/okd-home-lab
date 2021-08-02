@@ -16,8 +16,8 @@ case $i in
 esac
 done
 
-mkdir -p ${OKD4_LAB_PATH}/okd-release-tmp
-cd ${OKD4_LAB_PATH}/okd-release-tmp
+mkdir -p ${OKD_LAB_PATH}/okd-release-tmp
+cd ${OKD_LAB_PATH}/okd-release-tmp
 oc adm release extract --command='openshift-install' ${OKD_REGISTRY}:${OKD_RELEASE}
 oc adm release extract --command='oc' ${OKD_REGISTRY}:${OKD_RELEASE}
 mv -f openshift-install ~/bin
