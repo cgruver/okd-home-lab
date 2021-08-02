@@ -34,7 +34,7 @@ export DOMAIN=${LAB_DOMAIN}
 export BASTION_HOST=${BASTION_HOST}
 export ROUTER=$(echo "${i1}.${i2}.${i3}.1")
 export NETMASK=255.255.255.0
-export FCOS_VER=32.20200923.3.0
+export FCOS_VER=34.20210711.3.0
 export FCOS_STREAM=stable
 EOF
 
