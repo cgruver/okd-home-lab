@@ -31,5 +31,5 @@ do
   HOSTNAME=$(echo ${VARS} | cut -d',' -f2)
   ROLE=$(echo ${VARS} | cut -d',' -f7)
   ${SSH} root@${HOST_NODE}.${CLUSTER_DOMAIN} "virsh start ${HOSTNAME}"
-  sleep 10
+  sleep 5
 done

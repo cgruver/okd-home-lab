@@ -49,3 +49,5 @@ do
   ${SSH} root@${HOST_NODE}.${CLUSTER_DOMAIN} "virsh pool-undefine ${HOSTNAME}"
   ${SSH} root@${HOST_NODE}.${CLUSTER_DOMAIN} "rm -rf /VirtualMachines/${HOSTNAME}"
 done
+
+${SSH} root@${ROUTER} "cp haproxy.bootstrap haproxy.cfg && /etc/init.d/haproxy restart" 

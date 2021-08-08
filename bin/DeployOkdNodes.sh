@@ -3,11 +3,10 @@
 set -x
 
 # This script will set up the infrastructure to deploy an OKD 4.X cluster
-# Follow the documentation at https://github.com/cgruver/okd4-UPI-Lab-Setup
+# Follow the documentation at https://upstreamwithoutapaddle.com/home-lab/lab-intro/
 CLUSTER_NAME="okd4"
 INSTALL_URL="http://${BASTION_HOST}/install"
 INVENTORY="${OKD_LAB_PATH}/inventory/okd4-lab"
-LAB_PWD=$(cat ${OKD_LAB_PATH}/lab_guest_pw)
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 
@@ -32,51 +31,7 @@ do
   esac
 done
 
-CLUSTER_DOMAIN="dc${CLUSTER}.${LAB_DOMAIN}"
-IFS=. read -r i1 i2 i3 i4 << EOI
-${EDGE_NETWORK}
-EOI
-ROUTER=${i1}.${i2}.$(( ${i3} + ${CLUSTER} )).1
 
-function createInstallConfig() {
-
-  SSH_KEY=$(cat ${OKD_LAB_PATH}/id_rsa.pub)
-  PULL_SECRET=$(cat ${OKD_LAB_PATH}/pull_secret.json)
-  NEXUS_CERT=$(openssl s_client -showcerts -connect nexus.${LAB_DOMAIN}:5001 </dev/null 2>/dev/null|openssl x509 -outform PEM | while read line; do echo "  $line"; done)
-
-cat << EOF > ${OKD_LAB_PATH}/install-config-upi.yaml
-apiVersion: v1
-baseDomain: ${CLUSTER_DOMAIN}
-metadata:
-  name: ${CLUSTER_NAME}
-networking:
-  networkType: OpenShiftSDN
-  clusterNetwork:
-  - cidr: 10.100.0.0/14 
-    hostPrefix: 23 
-  serviceNetwork: 
-  - 172.30.0.0/16
-compute:
-- name: worker
-  replicas: 0
-controlPlane:
-  name: master
-  replicas: 3
-platform:
-  none: {}
-pullSecret: '${PULL_SECRET}'
-sshKey: ${SSH_KEY}
-additionalTrustBundle: |
-${NEXUS_CERT}
-imageContentSources:
-- mirrors:
-  - nexus.${LAB_DOMAIN}:5001/origin
-  source: quay.io/openshift/okd
-- mirrors:
-  - nexus.${LAB_DOMAIN}:5001/origin
-  source: quay.io/openshift/okd-content
-EOF
-}
 
 function configOkdNode() {
     
@@ -132,6 +87,16 @@ storage:
       contents:
         inline: |
           ${host_name}
+    - path: /etc/chrony.conf
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          pool ${BASTION_HOST} iburst 
+          driftfile /var/lib/chrony/drift
+          makestep 1.0 3
+          rtcsync
+          logdir /var/log/chrony
 EOF
 
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
@@ -146,14 +111,11 @@ EOF
 
 }
 
-# Create and deploy ignition files
-rm -rf ${OKD_LAB_PATH}/ipxe-work-dir
-rm -rf ${OKD_LAB_PATH}/okd-install-dir
-mkdir ${OKD_LAB_PATH}/okd-install-dir
-mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir/ignition
-createInstallConfig
-cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/install-config.yaml
-openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create ignition-configs
+CLUSTER_DOMAIN="dc${CLUSTER}.${LAB_DOMAIN}"
+IFS=. read -r i1 i2 i3 i4 << EOI
+${EDGE_NETWORK}
+EOI
+ROUTER=${i1}.${i2}.$(( ${i3} + ${CLUSTER} )).1
 
 # Create Virtual Machines from the inventory file
 for VARS in $(cat ${INVENTORY} | grep -v "#")
@@ -188,7 +150,7 @@ do
 
   # Create node specific files
   configOkdNode ${NODE_IP} ${HOSTNAME}.${CLUSTER_DOMAIN} ${NET_MAC} ${ROLE}
-  cat ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${NET_MAC//:/-}.yml | butane -d ${OKD_LAB_PATH}/okd-install-dir/ -o ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${NET_MAC//:/-}.ign
+  cat ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${NET_MAC//:/-}.yml | butane -d ${OKD_LAB_PATH}/ipxe-work-dir/ -o ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${NET_MAC//:/-}.ign
 
 done
 

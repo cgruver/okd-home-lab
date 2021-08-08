@@ -133,11 +133,10 @@ pwpolicy luks --minlen=6 --minquality=1 --notstrict --nochanges --notempty
 
 %post
 nmcli con mod "br0 slave 1" ethtool.feature-tso off
-dnf -y install yum-utils
-yum-config-manager --disable appstream
-yum-config-manager --disable baseos
-yum-config-manager --disable extras
-yum-config-manager --add-repo ${INSTALL_URL}/postinstall/local-repos.repo
+dnf config-manager --add-repo ${INSTALL_URL}/postinstall/local-repos.repo
+dnf config-manager  --disable appstream
+dnf config-manager  --disable baseos
+dnf config-manager  --disable extras
 
 mkdir -p /root/.ssh
 chmod 700 /root/.ssh
