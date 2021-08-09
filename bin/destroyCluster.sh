@@ -50,4 +50,4 @@ do
   ${SSH} root@${HOST_NODE}.${CLUSTER_DOMAIN} "rm -rf /VirtualMachines/${HOSTNAME}"
 done
 
-${SSH} root@${ROUTER} "cp haproxy.bootstrap haproxy.cfg && /etc/init.d/haproxy restart" 
+${SSH} root@${ROUTER} "cp /etc/haproxy.bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy restart" 
