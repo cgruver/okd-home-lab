@@ -5,7 +5,7 @@ metadata:
   namespace: rook-ceph
 spec:
   cephVersion:
-    image: quay.io/ceph/ceph:v16.2.5
+    image: ${LOCAL_REGISTRY}/ceph/ceph:v16.2.5
     allowUnsupported: false
   dataDirHostPath: /var/lib/rook
   skipUpgradeChecks: false
@@ -81,17 +81,17 @@ spec:
     useAllDevices: false
     config:
     nodes:
-    - name: "okd4-worker-0.%%LAB_DOMAIN%%"
+    - name: "okd4-worker-0.dc1.${LAB_DOMAIN}"
       devices:
       - name: "sdb"
         config:
           osdsPerDevice: "1"
-    - name: "okd4-worker-1.%%LAB_DOMAIN%%"
+    - name: "okd4-worker-1.dc1.${LAB_DOMAIN}"
       devices:
       - name: "sdb"
         config:
           osdsPerDevice: "1"
-    - name: "okd4-worker-2.%%LAB_DOMAIN%%"
+    - name: "okd4-worker-2.dc1.${LAB_DOMAIN}"
       devices:
       - name: "sdb"
         config:
