@@ -4,7 +4,8 @@ SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 DISK_1=""
 DISK_2=""
 INSTALL_URL="http://${BASTION_HOST}/install"
-CLUSTER_NETMASK=${NETMASK}
+LAB_NETMASK=${NETMASK}
+CLUSTER=""
 
 for i in "$@"
 do
@@ -31,11 +32,18 @@ case $i in
 esac
 done
 
-CLUSTER_DOMAIN=dc${CLUSTER}.${LAB_DOMAIN}
 IFS=. read -r i1 i2 i3 i4 << EOI
 ${EDGE_NETWORK}
 EOI
-CLUSTER_GATEWAY=${i1}.${i2}.$(( ${i3} + ${CLUSTER} )).1
+
+if [[ ${CLUSTER} == "" ]]
+then
+  DOMAIN=${LAB_DOMAIN}
+  GATEWAY=${EDGE_ROUTER}
+else
+  DOMAIN=dc${CLUSTER}.${LAB_DOMAIN}
+  GATEWAY=${i1}.${i2}.$(( ${i3} + ${CLUSTER} )).1
+fi
 
 DISK_1=$(echo ${DISK} | cut -d"," -f 1)
 DISK_2=$(echo ${DISK} | cut -d"," -f 2)
@@ -67,19 +75,19 @@ fi
 mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir
 
 # Get IP address for nic0
-IP=$(dig ${HOSTNAME}.${CLUSTER_DOMAIN} +short)
+IP=$(dig ${HOSTNAME}.${DOMAIN} +short)
 
 # Create and deploy the iPXE boot file for this host
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${NET_MAC//:/-}.ipxe
 #!ipxe
 
-kernel ${INSTALL_URL}/repos/BaseOS/x86_64/os/isolinux/vmlinuz net.ifnames=1 ifname=nic0:${NET_MAC} ip=${IP}::${CLUSTER_GATEWAY}:${CLUSTER_NETMASK}:${HOSTNAME}.${CLUSTER_DOMAIN}:nic0:none nameserver=${CLUSTER_GATEWAY} inst.ks=${INSTALL_URL}/kickstart/${NET_MAC//:/-}.ks inst.repo=${INSTALL_URL}/repos/BaseOS/x86_64/os initrd=initrd.img
+kernel ${INSTALL_URL}/repos/BaseOS/x86_64/os/isolinux/vmlinuz net.ifnames=1 ifname=nic0:${NET_MAC} ip=${IP}::${GATEWAY}:${LAB_NETMASK}:${HOSTNAME}.${DOMAIN}:nic0:none nameserver=${GATEWAY} inst.ks=${INSTALL_URL}/kickstart/${NET_MAC//:/-}.ks inst.repo=${INSTALL_URL}/repos/BaseOS/x86_64/os initrd=initrd.img
 initrd ${INSTALL_URL}/repos/BaseOS/x86_64/os/isolinux/initrd.img
 
 boot
 EOF
 
-${SCP} ${OKD_LAB_PATH}/ipxe-work-dir/${NET_MAC//:/-}.ipxe root@${CLUSTER_GATEWAY}:/data/tftpboot/ipxe/${NET_MAC//:/-}.ipxe
+${SCP} ${OKD_LAB_PATH}/ipxe-work-dir/${NET_MAC//:/-}.ipxe root@${GATEWAY}:/data/tftpboot/ipxe/${NET_MAC//:/-}.ipxe
 
 # Create the Kickstart file
 
@@ -112,7 +120,7 @@ logvol /  --fstype="xfs" --grow --maxsize=2000000 --size=1024 --name=root --vgna
 # Network Config
 network  --hostname=${HOSTNAME}
 network  --device=nic0 --noipv4 --noipv6 --no-activate --onboot=no
-network  --bootproto=static --device=br0 --bridgeslaves=nic0 --gateway=${CLUSTER_GATEWAY} --ip=${IP} --nameserver=${CLUSTER_GATEWAY} --netmask=${CLUSTER_NETMASK} --noipv6 --activate --bridgeopts="stp=false" --onboot=yes
+network  --bootproto=static --device=br0 --bridgeslaves=nic0 --gateway=${GATEWAY} --ip=${IP} --nameserver=${GATEWAY} --netmask=${LAB_NETMASK} --noipv6 --activate --bridgeopts="stp=false" --onboot=yes
 
 eula --agreed
 
@@ -159,7 +167,7 @@ reboot
 
 EOF
 
-${SCP} ${OKD_LAB_PATH}/ipxe-work-dir/${NET_MAC//:/-}.ks root@${BASTION_HOST}:/www/install/kickstart/${NET_MAC//:/-}.ks
+${SCP} ${OKD_LAB_PATH}/ipxe-work-dir/${NET_MAC//:/-}.ks root@${BASTION_HOST}:/usr/local/www/install/kickstart/${NET_MAC//:/-}.ks
 
 # Clean up
 rm -rf ${OKD_LAB_PATH}/ipxe-work-dir

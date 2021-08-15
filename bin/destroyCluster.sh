@@ -40,7 +40,7 @@ do
 
   # Remove the iPXE boot file
   ${SSH} root@${ROUTER} "rm -f /data/tftpboot/ipxe/${NET_MAC//:/-}.ipxe"
-  ${SSH} root@${BASTION_HOST} "rm -f /www/install/fcos/ignition/${CLUSTER_NAME}/${NET_MAC//:/-}.ign"
+  ${SSH} root@${BASTION_HOST} "rm -f /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}/${NET_MAC//:/-}.ign"
 
   # Destroy the VM
   ${SSH} root@${HOST_NODE}.${CLUSTER_DOMAIN} "virsh destroy ${HOSTNAME}"

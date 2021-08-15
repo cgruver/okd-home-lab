@@ -1,0 +1,49 @@
+<mxfile host="65bd71144e">
+    <diagram id="Q76Vc75OAXVztct8oLC9" name="Page-1">
+        <mxGraphModel dx="1219" dy="771" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="3000" pageHeight="3000" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="wNvaD-fYMR9CclUvbwXC-1" target="wNvaD-fYMR9CclUvbwXC-12" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-1" value="Edge Router&lt;br&gt;(GL-MV1000W)" style="fontColor=#0066CC;verticalAlign=top;verticalLabelPosition=bottom;labelPosition=right;align=left;html=1;outlineConnect=0;fillColor=#CCCCCC;strokeColor=#6881B3;gradientColor=none;gradientDirection=north;strokeWidth=2;shape=mxgraph.networks.wireless_hub;" parent="1" vertex="1">
+                    <mxGeometry x="510" y="300" width="100" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="wNvaD-fYMR9CclUvbwXC-2" target="wNvaD-fYMR9CclUvbwXC-1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-2" value="Internal Router&lt;br&gt;(GL-MV1000)" style="fontColor=#0066CC;verticalAlign=top;verticalLabelPosition=bottom;labelPosition=right;align=left;html=1;outlineConnect=0;fillColor=#CCCCCC;strokeColor=#6881B3;gradientColor=none;gradientDirection=north;strokeWidth=2;shape=mxgraph.networks.router;" parent="1" vertex="1">
+                    <mxGeometry x="510" y="530" width="100" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.824;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="wNvaD-fYMR9CclUvbwXC-3" target="wNvaD-fYMR9CclUvbwXC-1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-3" value="Your Workstation" style="fontColor=#0066CC;verticalAlign=top;verticalLabelPosition=bottom;labelPosition=center;align=center;html=1;outlineConnect=0;fillColor=#CCCCCC;strokeColor=#6881B3;gradientColor=none;gradientDirection=north;strokeWidth=2;shape=mxgraph.networks.laptop;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="342" width="100" height="55" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=1;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="wNvaD-fYMR9CclUvbwXC-7" target="wNvaD-fYMR9CclUvbwXC-2" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-7" value="Intel NUC10i7FNK" style="fontColor=#0066CC;verticalAlign=top;verticalLabelPosition=bottom;labelPosition=right;align=left;html=1;outlineConnect=0;fillColor=#CCCCCC;strokeColor=#6881B3;gradientColor=none;gradientDirection=north;strokeWidth=2;shape=mxgraph.networks.server;" parent="1" vertex="1">
+                    <mxGeometry x="515" y="680" width="90" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-10" value="Internet" style="html=1;outlineConnect=0;fillColor=#CCCCCC;strokeColor=#6881B3;gradientColor=none;gradientDirection=north;strokeWidth=2;shape=mxgraph.networks.cloud;fontColor=#ffffff;" parent="1" vertex="1">
+                    <mxGeometry x="515" y="40" width="90" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-14" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" parent="1" source="wNvaD-fYMR9CclUvbwXC-12" target="wNvaD-fYMR9CclUvbwXC-10" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-12" value="Your Home Router" style="fontColor=#0066CC;verticalAlign=bottom;verticalLabelPosition=top;labelPosition=left;align=right;html=1;outlineConnect=0;fillColor=#CCCCCC;strokeColor=#6881B3;gradientColor=none;gradientDirection=north;strokeWidth=2;shape=mxgraph.networks.router;" parent="1" vertex="1">
+                    <mxGeometry x="510" y="170" width="100" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.96;entryY=0.788;entryDx=0;entryDy=0;entryPerimeter=0;" parent="1" source="wNvaD-fYMR9CclUvbwXC-16" target="wNvaD-fYMR9CclUvbwXC-1" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="wNvaD-fYMR9CclUvbwXC-16" value="Bastion Host (8GB Pi4B)" style="fontColor=#0066CC;verticalAlign=bottom;verticalLabelPosition=top;labelPosition=center;align=center;html=1;outlineConnect=0;fillColor=#CCCCCC;strokeColor=#6881B3;gradientColor=none;gradientDirection=north;strokeWidth=2;shape=mxgraph.networks.nas_filer;" parent="1" vertex="1">
+                    <mxGeometry x="710" y="350" width="100" height="35" as="geometry"/>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

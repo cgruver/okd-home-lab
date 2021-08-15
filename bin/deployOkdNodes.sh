@@ -154,9 +154,9 @@ do
 
 done
 
-${SSH} root@${BASTION_HOST} "mkdir -p /www/install/fcos/ignition/${CLUSTER_NAME}"
-${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/ignition/*.ign root@${BASTION_HOST}:/www/install/fcos/ignition/${CLUSTER_NAME}/
-${SSH} root@${BASTION_HOST} "chmod 644 /www/install/fcos/ignition/${CLUSTER_NAME}/*"
+${SSH} root@${BASTION_HOST} "mkdir -p /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}"
+${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/ignition/*.ign root@${BASTION_HOST}:/usr/local/www/install/fcos/ignition/${CLUSTER_NAME}/
+${SSH} root@${BASTION_HOST} "chmod 644 /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}/*"
 ${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/*.ipxe root@${ROUTER}:/data/tftpboot/ipxe/
 
 
