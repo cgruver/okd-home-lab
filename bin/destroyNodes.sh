@@ -2,6 +2,7 @@
 
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 CLUSTER_NAME="okd4"
+RESET_LB=false
 
 for i in "$@"
 do
@@ -16,6 +17,10 @@ case $i in
   ;;
   -cn=*|--name=*)
   CLUSTER_NAME="${i#*=}"
+  shift
+  ;;
+  -r|--reset)
+  RESET_LB=true
   shift
   ;;
   *)
@@ -50,4 +55,8 @@ do
   ${SSH} root@${HOST_NODE}.${CLUSTER_DOMAIN} "rm -rf /VirtualMachines/${HOSTNAME}"
 done
 
-${SSH} root@${ROUTER} "cp /etc/haproxy.bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy restart" 
+if [[ ${RESET_LB} == "true" ]]
+then
+  ${SSH} root@${ROUTER} "cp /etc/haproxy.bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy restart" 
+fi
+

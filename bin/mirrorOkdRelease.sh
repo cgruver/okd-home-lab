@@ -23,5 +23,5 @@ fi
 
 OKD_RELEASE=$(oc version --client=true | cut -d" " -f3)
 
-oc adm -a ${LOCAL_SECRET_JSON} release mirror --from=${OKD_REGISTRY}:${OKD_RELEASE} --to=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY} --to-release-image=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OKD_RELEASE}
+oc adm -a ${LOCAL_SECRET_JSON} release mirror --from=${OKD_REGISTRY}:${OKD_RELEASE} --to=${LOCAL_REGISTRY}/${OKD_RELEASE} --to-release-image=${LOCAL_REGISTRY}/${OKD_RELEASE}:${OKD_RELEASE}
 

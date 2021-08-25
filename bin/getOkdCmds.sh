@@ -16,6 +16,7 @@ case $i in
 esac
 done
 
+OKD_RELEASE=$(curl https://github.com/openshift/okd/releases/latest | cut -d"/" -f8 | cut -d\" -f1)
 mkdir -p ${OKD_LAB_PATH}/okd-release-tmp
 cd ${OKD_LAB_PATH}/okd-release-tmp
 oc adm release extract --command='openshift-install' ${OKD_REGISTRY}:${OKD_RELEASE}

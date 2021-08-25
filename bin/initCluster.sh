@@ -56,14 +56,15 @@ additionalTrustBundle: |
 ${NEXUS_CERT}
 imageContentSources:
 - mirrors:
-  - nexus.${LAB_DOMAIN}:5001/origin
+  - nexus.${LAB_DOMAIN}:5001/${OKD_RELEASE}
   source: quay.io/openshift/okd
 - mirrors:
-  - nexus.${LAB_DOMAIN}:5001/origin
+  - nexus.${LAB_DOMAIN}:5001/${OKD_RELEASE}
   source: quay.io/openshift/okd-content
 EOF
 }
 
+OKD_RELEASE=$(oc version --client=true | cut -d" " -f3)
 CLUSTER_DOMAIN="dc${CLUSTER}.${LAB_DOMAIN}"
 SSH_KEY=$(cat ${OKD_LAB_PATH}/id_rsa.pub)
 PULL_SECRET=$(cat ${OKD_LAB_PATH}/pull_secret.json)

@@ -31,5 +31,6 @@ do
   HOSTNAME=$(echo ${VARS} | cut -d',' -f2)
   ROLE=$(echo ${VARS} | cut -d',' -f7)
   ${SSH} root@${HOST_NODE}.${CLUSTER_DOMAIN} "virsh start ${HOSTNAME}"
-  sleep 5
+  echo "Pause for 15 seconds to stagger node start up."
+  sleep 15
 done
