@@ -3,31 +3,8 @@
 # This script will set up the infrastructure to deploy an OKD 4.X cluster
 # Follow the documentation at https://upstreamwithoutapaddle.com/home-lab/lab-intro/
 
-CLUSTER_NAME="okd4"
-INVENTORY="${OKD_LAB_PATH}/inventory/okd4-lab"
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-
-for i in "$@"
-do
-  case $i in
-      -i=*|--inventory=*)
-      INVENTORY="${i#*=}"
-      shift # past argument=value
-      ;;
-      -c=*|--cluster=*)
-      let CLUSTER=${i#*=}
-      shift
-      ;;
-      -cn=*|--name=*)
-      CLUSTER_NAME="${i#*=}"
-      shift
-      ;;
-      *)
-            # put usage here:
-      ;;
-  esac
-done
 
 function createInstallConfig() {
 cat << EOF > ${OKD_LAB_PATH}/install-config-upi.yaml
@@ -64,8 +41,11 @@ imageContentSources:
 EOF
 }
 
+CONFIG_FILE=$1
+CLUSTER_NAME=$(yq e .cluster-sub-domain ${CONFIG_FILE})
+SUB_DOMAIN=$(yq e .cluster-name ${CONFIG_FILE})
+CLUSTER_DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
 OKD_RELEASE=$(oc version --client=true | cut -d" " -f3)
-CLUSTER_DOMAIN="dc${CLUSTER}.${LAB_DOMAIN}"
 SSH_KEY=$(cat ${OKD_LAB_PATH}/id_rsa.pub)
 PULL_SECRET=$(cat ${OKD_LAB_PATH}/pull_secret.json)
 NEXUS_CERT=$(openssl s_client -showcerts -connect nexus.${LAB_DOMAIN}:5001 </dev/null 2>/dev/null|openssl x509 -outform PEM | while read line; do echo "  $line"; done)
@@ -80,4 +60,4 @@ cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/insta
 openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create ignition-configs
 cp ${OKD_LAB_PATH}/okd-install-dir/*.ign ${OKD_LAB_PATH}/ipxe-work-dir/
 
-${OKD_LAB_PATH}/bin/deployOkdNodes.sh -i=${INVENTORY} -c=${CLUSTER} -cn=${CLUSTER_NAME}
+${OKD_LAB_PATH}/bin/deployOkdNodes.sh ${CONFIG_FILE}
