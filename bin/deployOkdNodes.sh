@@ -31,32 +31,30 @@ do
 done
 
 function createControlPlaneDNS() {
-cat << EOF | ssh root@${ROUTER} "cat >> /etc/bind/db.${CLUSTER_DOMAIN}
-${CLUSTER_NAME}-bootstrap.${CLUSTER_DOMAIN}.  IN      A      ${NET_PREFIX}.49
-${CLUSTER_NAME}-lb01.${CLUSTER_DOMAIN}.       IN      A      ${NET_PREFIX}.2
-*.apps.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.     IN      A      ${NET_PREFIX}.2
-api.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.        IN      A      ${NET_PREFIX}.2
-api-int.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.    IN      A      ${NET_PREFIX}.2
-${CLUSTER_NAME}-master-0.${CLUSTER_DOMAIN}.   IN      A      ${NET_PREFIX}.60
-etcd-0.${CLUSTER_DOMAIN}.          IN      A      ${NET_PREFIX}.60
-${CLUSTER_NAME}-master-1.${CLUSTER_DOMAIN}.   IN      A      ${NET_PREFIX}.61
-etcd-1.${CLUSTER_DOMAIN}.          IN      A      ${NET_PREFIX}.61
-${CLUSTER_NAME}-master-2.${CLUSTER_DOMAIN}.   IN      A      ${NET_PREFIX}.62
-etcd-2.${CLUSTER_DOMAIN}.          IN      A      ${NET_PREFIX}.62
-_etcd-server-ssl._tcp.${CLUSTER_NAME}.${CLUSTER_DOMAIN}    86400     IN    SRV     0    10    2380    etcd-0.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.
-_etcd-server-ssl._tcp.${CLUSTER_NAME}.${CLUSTER_DOMAIN}    86400     IN    SRV     0    10    2380    etcd-1.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.
-_etcd-server-ssl._tcp.${CLUSTER_NAME}.${CLUSTER_DOMAIN}    86400     IN    SRV     0    10    2380    etcd-2.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.
+cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+${CLUSTER_NAME}-bootstrap.${CLUSTER_DOMAIN}.  IN      A      ${NET_PREFIX}.49 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+${CLUSTER_NAME}-lb01.${CLUSTER_DOMAIN}.       IN      A      ${NET_PREFIX}.2 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+*.apps.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.     IN      A      ${NET_PREFIX}.2 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+api.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.        IN      A      ${NET_PREFIX}.2 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+api-int.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.    IN      A      ${NET_PREFIX}.2 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+${CLUSTER_NAME}-master-0.${CLUSTER_DOMAIN}.   IN      A      ${NET_PREFIX}.60 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+etcd-0.${CLUSTER_DOMAIN}.          IN      A      ${NET_PREFIX}.60 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+${CLUSTER_NAME}-master-1.${CLUSTER_DOMAIN}.   IN      A      ${NET_PREFIX}.61 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+etcd-1.${CLUSTER_DOMAIN}.          IN      A      ${NET_PREFIX}.61 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+${CLUSTER_NAME}-master-2.${CLUSTER_DOMAIN}.   IN      A      ${NET_PREFIX}.62 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+etcd-2.${CLUSTER_DOMAIN}.          IN      A      ${NET_PREFIX}.62 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+_etcd-server-ssl._tcp.${CLUSTER_NAME}.${CLUSTER_DOMAIN}    86400     IN    SRV     0    10    2380    etcd-0.${CLUSTER_NAME}.${CLUSTER_DOMAIN}. ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+_etcd-server-ssl._tcp.${CLUSTER_NAME}.${CLUSTER_DOMAIN}    86400     IN    SRV     0    10    2380    etcd-1.${CLUSTER_NAME}.${CLUSTER_DOMAIN}. ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+_etcd-server-ssl._tcp.${CLUSTER_NAME}.${CLUSTER_DOMAIN}    86400     IN    SRV     0    10    2380    etcd-2.${CLUSTER_NAME}.${CLUSTER_DOMAIN}. ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
 EOF
 
-cat << EOF | ssh root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}
-2.${NET_PREFIX_ARPA}     IN      PTR     ${CLUSTER_NAME}-lb01.${CLUSTER_DOMAIN}.
-49.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-bootstrap.${CLUSTER_DOMAIN}.  
-60.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-0.${CLUSTER_DOMAIN}. 
-61.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-1.${CLUSTER_DOMAIN}. 
-62.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-2.${CLUSTER_DOMAIN}. 
+cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+2.${NET_PREFIX_ARPA}     IN      PTR     ${CLUSTER_NAME}-lb01.${CLUSTER_DOMAIN}. ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+49.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-bootstrap.${CLUSTER_DOMAIN}.   ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+60.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-0.${CLUSTER_DOMAIN}.  ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+61.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-1.${CLUSTER_DOMAIN}.  ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+62.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-2.${CLUSTER_DOMAIN}.  ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
 EOF
-
-${SSH} root@${ROUTER} "/etc/init.d/named restart"
 
 }
 
@@ -164,7 +162,7 @@ EOF
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
 #!ipxe
 
-kernel http://${BASTION_HOST}/install/fcos/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst=yes coreos.inst.install_dev=sda coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}/${mac//:/-}.ign coreos.inst.platform_id=qemu console=ttyS0
+kernel http://${BASTION_HOST}/install/fcos/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst=yes coreos.inst.install_dev=sda coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign coreos.inst.platform_id=qemu console=ttyS0
 initrd http://${BASTION_HOST}/install/fcos/initrd
 initrd http://${BASTION_HOST}/install/fcos/rootfs.img
 
@@ -203,8 +201,8 @@ function createOkdNode() {
   cat ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${NET_MAC//:/-}.yml | butane -d ${OKD_LAB_PATH}/ipxe-work-dir/ -o ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${NET_MAC//:/-}.ign
 }
 
-CLUSTER_NAME=$(yq e .cluster-sub-domain ${CONFIG_FILE})
-SUB_DOMAIN=$(yq e .cluster-name ${CONFIG_FILE})
+CLUSTER_NAME=$(yq e .cluster-name ${CONFIG_FILE})
+SUB_DOMAIN=$(yq e .cluster-sub-domain ${CONFIG_FILE})
 ROUTER=$(yq e .router ${CONFIG_FILE})
 CLUSTER_DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
 NETWORK=$(yq e .network ${CONFIG_FILE})
@@ -215,6 +213,11 @@ ${NETWORK}
 EOF
 NET_PREFIX=${i1}.${i2}.${i3}
 NET_PREFIX_ARPA=${i3}.${i2}.${i1}
+
+rm -rf ${OKD_LAB_PATH}/ipxe-work-dir
+rm -rf ${OKD_LAB_PATH}/dns-work-dir
+mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir/ignition
+mkdir -p ${OKD_LAB_PATH}/dns-work-dir
 
 if [[ ${INIT_CLUSTER} == "true" ]]
 then
@@ -234,10 +237,8 @@ then
   fi
 
   # Create and deploy ignition files
-  rm -rf ${OKD_LAB_PATH}/ipxe-work-dir
   rm -rf ${OKD_LAB_PATH}/okd-install-dir
   mkdir ${OKD_LAB_PATH}/okd-install-dir
-  mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir/ignition
   createInstallConfig
   cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/install-config.yaml
   openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create ignition-configs
@@ -257,14 +258,14 @@ then
   root_vol=$(yq e .control-plane.root_vol ${CONFIG_FILE})
   if [[ ${AZ} == "1" ]]
   then
-    kvm_host=$(yq e .master.control-plane.kvm-hosts.[0] ${CONFIG_FILE})
+    kvm_host=$(yq e .control-plane.kvm-hosts.[0] ${CONFIG_FILE})
     createOkdNode ${NET_PREFIX}.60 ${CLUSTER_NAME}-master-0 ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
     createOkdNode ${NET_PREFIX}.61 ${CLUSTER_NAME}-master-1 ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
     createOkdNode ${NET_PREFIX}.62 ${CLUSTER_NAME}-master-2 ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
   else
     for i in 0 1 2
     do
-      kvm_host=$(yq e .master.control-plane.kvm-hosts.[${i}] ${CONFIG_FILE})
+      kvm_host=$(yq e .control-plane.kvm-hosts.[${i}] ${CONFIG_FILE})
       createOkdNode ${NET_PREFIX}.6${i} ${CLUSTER_NAME}-master-${i} ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
     done
   fi
@@ -274,12 +275,37 @@ fi
 
 if [[ ${ADD_WORKER} == "true" ]]
 then
-
+  let NODE_COUNT=$(yq e .compute-nodes.kvm-hosts ${CONFIG_FILE} | yq e 'length' -)
+  if [[ NODE_COUNT -gt 10 ]]
+  then
+    echo "This helper script does not support adding more than 10 worker nodes."
+    exit 1
+  fi
+  if [[ ${INIT_CLUSTER} != "true" ]]
+  then
+    oc extract -n openshift-machine-api secret/worker-user-data --keys=userData --to=- > ${OKD_LAB_PATH}/ipxe-work-dir/worker.ign
+  fi
+  
+  memory=$(yq e .compute-nodes.memory ${CONFIG_FILE})
+  cpu=$(yq e .compute-nodes.cpu ${CONFIG_FILE})
+  root_vol=$(yq e .compute-nodes.root_vol ${CONFIG_FILE})
+  ceph_vol=$(yq e .compute-nodes.ceph_vol ${CONFIG_FILE})
+  
+  let i=0
+  while [[ i -lt ${NODE_COUNT} ]]
+  do
+    kvm_host=$(yq e .compute-nodes.kvm-hosts.[${i}] ${CONFIG_FILE})
+    echo "${CLUSTER_NAME}-worker-${i}.${CLUSTER_DOMAIN}.   IN      A      ${NET_PREFIX}.7${i} ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+    echo "7${i}.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-worker-${i}.${CLUSTER_DOMAIN}. ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-wk"
+    createOkdNode ${NET_PREFIX}.7${i} ${CLUSTER_NAME}-worker-${i} ${kvm_host} worker ${memory} ${cpu} ${root_vol} ${ceph_vol}
+    i=$(( ${i} + 1 ))
+  done
 fi
 
-${SSH} root@${BASTION_HOST} "mkdir -p /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}"
-${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/ignition/*.ign root@${BASTION_HOST}:/usr/local/www/install/fcos/ignition/${CLUSTER_NAME}/
-${SSH} root@${BASTION_HOST} "chmod 644 /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}/*"
+cat ${OKD_LAB_PATH}/dns-work-dir/forward.zone | ssh root@${ROUTER} "cat >> /etc/bind/db.${CLUSTER_DOMAIN}
+cat ${OKD_LAB_PATH}/dns-work-dir/reverse.zone | ssh root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}
+${SSH} root@${ROUTER} "/etc/init.d/named restart"
+${SSH} root@${BASTION_HOST} "mkdir -p /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}"
+${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/ignition/*.ign root@${BASTION_HOST}:/usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/
+${SSH} root@${BASTION_HOST} "chmod 644 /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/*"
 ${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/*.ipxe root@${ROUTER}:/data/tftpboot/ipxe/
-
-

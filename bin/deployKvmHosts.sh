@@ -1,30 +1,14 @@
 #!/bin/bash
 
 SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-DISK_1=""
-DISK_2=""
 INSTALL_URL="http://${BASTION_HOST}/install"
-LAB_NETMASK=${NETMASK}
-CLUSTER=""
 
 for i in "$@"
 do
 case $i in
-    -h=*|--hostname=*)
-    HOSTNAME="${i#*=}"
-    shift
-    ;;
-    -m=*|--mac=*)
-    NET_MAC="${i#*=}"
-    shift
-    ;;
-    -d=*|--diskList=*)
-    DISK="${i#*=}"
-    shift
-    ;;
-    -c=*|--cluster=*)
-    let CLUSTER="${i#*=}"
-    shift
+    -c=*|--config=*)
+      CONFIG_FILE="${i#*=}"
+      shift
     ;;
     *)
           # Put usage here:
@@ -32,47 +16,31 @@ case $i in
 esac
 done
 
-IFS=. read -r i1 i2 i3 i4 << EOI
-${EDGE_NETWORK}
-EOI
-
-if [[ ${CLUSTER} == "" ]]
-then
-  DOMAIN=${LAB_DOMAIN}
-  GATEWAY=${EDGE_ROUTER}
-else
-  DOMAIN=dc${CLUSTER}.${LAB_DOMAIN}
-  GATEWAY=${i1}.${i2}.$(( ${i3} + ${CLUSTER} )).1
-fi
-
-DISK_1=$(echo ${DISK} | cut -d"," -f 1)
-DISK_2=$(echo ${DISK} | cut -d"," -f 2)
-if [[ ${DISK_1} == ${DISK_2} ]]
-then
-  DISK_2=""
-fi
-
-LAB_PWD=$(cat ${OKD_LAB_PATH}/lab_host_pw)
-
 function createPartInfo() {
 
-if [[ ${DISK_2} == "" ]]
+local disk1=${1}
+local disk2=${2}
+
+if [[ ${disk2} == "" ]]
 then
 cat <<EOF
-part pv.1 --fstype="lvmpv" --ondisk=${DISK_1} --size=1024 --grow --maxsize=2000000
+part pv.1 --fstype="lvmpv" --ondisk=${disk1} --size=1024 --grow --maxsize=2000000
 volgroup centos --pesize=4096 pv.1
 EOF
 else
 cat <<EOF
-part pv.1 --fstype="lvmpv" --ondisk=${DISK_1} --size=1024 --grow --maxsize=2000000
-part pv.2 --fstype="lvmpv" --ondisk=${DISK_2} --size=1024 --grow --maxsize=2000000
+part pv.1 --fstype="lvmpv" --ondisk=${disk1} --size=1024 --grow --maxsize=2000000
+part pv.2 --fstype="lvmpv" --ondisk=${disk2} --size=1024 --grow --maxsize=2000000
 volgroup centos --pesize=4096 pv.1 pv.2
 EOF
 fi
 }
 
-# Create temporary work directory
-mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir
+function createKickStartFile() {
+
+}
+
+
 
 # Get IP address for nic0
 IP=$(dig ${HOSTNAME}.${DOMAIN} +short)
@@ -81,7 +49,7 @@ IP=$(dig ${HOSTNAME}.${DOMAIN} +short)
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${NET_MAC//:/-}.ipxe
 #!ipxe
 
-kernel ${INSTALL_URL}/repos/BaseOS/x86_64/os/isolinux/vmlinuz net.ifnames=1 ifname=nic0:${NET_MAC} ip=${IP}::${GATEWAY}:${LAB_NETMASK}:${HOSTNAME}.${DOMAIN}:nic0:none nameserver=${GATEWAY} inst.ks=${INSTALL_URL}/kickstart/${NET_MAC//:/-}.ks inst.repo=${INSTALL_URL}/repos/BaseOS/x86_64/os initrd=initrd.img
+kernel ${INSTALL_URL}/repos/BaseOS/x86_64/os/isolinux/vmlinuz net.ifnames=1 ifname=nic0:${NET_MAC} ip=${IP}::${GATEWAY}:${NETMASK}:${HOSTNAME}.${DOMAIN}:nic0:none nameserver=${GATEWAY} inst.ks=${INSTALL_URL}/kickstart/${NET_MAC//:/-}.ks inst.repo=${INSTALL_URL}/repos/BaseOS/x86_64/os initrd=initrd.img
 initrd ${INSTALL_URL}/repos/BaseOS/x86_64/os/isolinux/initrd.img
 
 boot
@@ -108,11 +76,11 @@ timezone America/New_York --isUtc
 
 # Disk partitioning information
 ignoredisk --only-use=${DISK}
-bootloader --append=" crashkernel=auto" --location=mbr --boot-drive=${DISK_1}
+bootloader --append=" crashkernel=auto" --location=mbr --boot-drive=${disk1}
 clearpart --drives=${DISK} --all --initlabel
 zerombr
-part /boot --fstype="xfs" --ondisk=${DISK_1} --size=1024
-part /boot/efi --fstype="efi" --ondisk=${DISK_1} --size=600 --fsoptions="umask=0077,shortname=winnt"
+part /boot --fstype="xfs" --ondisk=${disk1} --size=1024
+part /boot/efi --fstype="efi" --ondisk=${disk1} --size=600 --fsoptions="umask=0077,shortname=winnt"
 ${PART_INFO}
 logvol swap  --fstype="swap" --size=16064 --name=swap --vgname=centos
 logvol /  --fstype="xfs" --grow --maxsize=2000000 --size=1024 --name=root --vgname=centos
@@ -120,7 +88,7 @@ logvol /  --fstype="xfs" --grow --maxsize=2000000 --size=1024 --name=root --vgna
 # Network Config
 network  --hostname=${HOSTNAME}
 network  --device=nic0 --noipv4 --noipv6 --no-activate --onboot=no
-network  --bootproto=static --device=br0 --bridgeslaves=nic0 --gateway=${GATEWAY} --ip=${IP} --nameserver=${GATEWAY} --netmask=${LAB_NETMASK} --noipv6 --activate --bridgeopts="stp=false" --onboot=yes
+network  --bootproto=static --device=br0 --bridgeslaves=nic0 --gateway=${GATEWAY} --ip=${IP} --nameserver=${GATEWAY} --netmask=${NETMASK} --noipv6 --activate --bridgeopts="stp=false" --onboot=yes
 
 eula --agreed
 
@@ -166,6 +134,36 @@ echo '@reboot root nmcli con mod "br0 slave 1" ethtool.feature-tso off' >> /etc/
 reboot
 
 EOF
+
+SUB_DOMAIN=$(yq e .cluster-sub-domain ${CONFIG_FILE})
+CLUSTER_DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
+GATEWAY=$(yq e .router ${CONFIG_FILE})
+NETWORK=$(yq e .network ${CONFIG_FILE})
+NETMASK=$(yq e .netmask ${CONFIG_FILE})
+LAB_PWD=$(cat ${OKD_LAB_PATH}/lab_host_pw)
+
+
+# Create temporary work directory
+mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir
+
+HOST_COUNT=$(yq e .kvm-hosts ${CONFIG_FILE} | yq e 'length' -)
+
+let i=0
+while [[ i -lt ${HOST_COUNT} ]]
+do
+  kvm_host=$(yq e .kvm-hosts.[${i}].host-name ${CONFIG_FILE})
+  mac_addr=$(yq e .kvm-hosts.[${i}].mac-addr ${CONFIG_FILE})
+  DISK_COUNT=$(yq e .kvm-hosts.[${i}].disks ${CONFIG_FILE} | yq e 'length' -)
+  if [[ ${DISK_COUNT} == "1" ]]
+  then
+
+  elif [[ ${DISK_COUNT} == "2" ]]
+  then
+
+  else
+  
+  fi
+
 
 ${SCP} ${OKD_LAB_PATH}/ipxe-work-dir/${NET_MAC//:/-}.ks root@${BASTION_HOST}:/usr/local/www/install/kickstart/${NET_MAC//:/-}.ks
 
