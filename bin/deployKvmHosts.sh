@@ -38,9 +38,11 @@ fi
 
 function createKickStartFile() {
 
-}
-
-
+local hostname
+local mac_addr
+local ip_addr
+local disk1
+local disk2
 
 # Get IP address for nic0
 IP=$(dig ${HOSTNAME}.${DOMAIN} +short)
@@ -59,7 +61,7 @@ ${SCP} ${OKD_LAB_PATH}/ipxe-work-dir/${NET_MAC//:/-}.ipxe root@${GATEWAY}:/data/
 
 # Create the Kickstart file
 
-PART_INFO=$(createPartInfo)
+PART_INFO=$(createPartInfo ${disk1} ${disk2} )
 
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${NET_MAC//:/-}.ks
 #version=RHEL8
@@ -134,6 +136,8 @@ echo '@reboot root nmcli con mod "br0 slave 1" ethtool.feature-tso off' >> /etc/
 reboot
 
 EOF
+
+}
 
 SUB_DOMAIN=$(yq e .cluster-sub-domain ${CONFIG_FILE})
 CLUSTER_DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
