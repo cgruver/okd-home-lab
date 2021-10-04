@@ -32,7 +32,7 @@ done
 
 function createControlPlaneDNS() {
 cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/forward.zone
-${CLUSTER_NAME}-bootstrap.${CLUSTER_DOMAIN}.  IN      A      ${NET_PREFIX}.49 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+${CLUSTER_NAME}-bootstrap.${CLUSTER_DOMAIN}.  IN      A      ${NET_PREFIX}.49 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-bs
 ${CLUSTER_NAME}-lb01.${CLUSTER_DOMAIN}.       IN      A      ${NET_PREFIX}.2 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
 *.apps.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.     IN      A      ${NET_PREFIX}.2 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
 api.${CLUSTER_NAME}.${CLUSTER_DOMAIN}.        IN      A      ${NET_PREFIX}.2 ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
@@ -50,7 +50,7 @@ EOF
 
 cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
 2.${NET_PREFIX_ARPA}     IN      PTR     ${CLUSTER_NAME}-lb01.${CLUSTER_DOMAIN}. ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
-49.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-bootstrap.${CLUSTER_DOMAIN}.   ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
+49.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-bootstrap.${CLUSTER_DOMAIN}.   ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-bs
 60.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-0.${CLUSTER_DOMAIN}.  ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
 61.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-1.${CLUSTER_DOMAIN}.  ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
 62.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-2.${CLUSTER_DOMAIN}.  ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp
@@ -197,7 +197,7 @@ function createOkdNode() {
   NET_MAC=$(echo ${var} | cut -d" " -f5)
 
   # Create node specific files
-  configOkdNode ${NODE_IP} ${host_name}.${CLUSTER_DOMAIN} ${NET_MAC} ${ROLE}
+  configOkdNode ${ip_addr} ${host_name}.${CLUSTER_DOMAIN} ${NET_MAC} ${role}
   cat ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${NET_MAC//:/-}.yml | butane -d ${OKD_LAB_PATH}/ipxe-work-dir/ -o ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${NET_MAC//:/-}.ign
 }
 
@@ -225,14 +225,10 @@ then
   SSH_KEY=$(cat ${OKD_LAB_PATH}/id_rsa.pub)
   PULL_SECRET=$(cat ${OKD_LAB_PATH}/pull_secret.json)
   NEXUS_CERT=$(openssl s_client -showcerts -connect nexus.${LAB_DOMAIN}:5001 </dev/null 2>/dev/null|openssl x509 -outform PEM | while read line; do echo "  $line"; done)
-  let KVM_NODES=$(yq e .control-plane.kvm-hosts ${CONFIG_FILE} | yq e 'length' -)
-  if [[ KVM_NODES -eq 1 ]]
+  KVM_NODES=$(yq e .control-plane.kvm-hosts ${CONFIG_FILE} | yq e 'length' -)
+  if [[ ${KVM_NODES} != "3" ]]
   then
-    AZ=1
-  elif [[ KVM_NODES -eq 3 ]]
-    AZ=3
-  else
-    echo "This script only supports deploying the control-plane nodes on 1 or 3 KVM hosts"
+    echo "There must be 3 KVM host entries for the control plane."
     exit 1
   fi
 
@@ -256,19 +252,11 @@ then
   memory=$(yq e .control-plane.memory ${CONFIG_FILE})
   cpu=$(yq e .control-plane.cpu ${CONFIG_FILE})
   root_vol=$(yq e .control-plane.root_vol ${CONFIG_FILE})
-  if [[ ${AZ} == "1" ]]
-  then
-    kvm_host=$(yq e .control-plane.kvm-hosts.[0] ${CONFIG_FILE})
-    createOkdNode ${NET_PREFIX}.60 ${CLUSTER_NAME}-master-0 ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
-    createOkdNode ${NET_PREFIX}.61 ${CLUSTER_NAME}-master-1 ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
-    createOkdNode ${NET_PREFIX}.62 ${CLUSTER_NAME}-master-2 ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
-  else
-    for i in 0 1 2
-    do
-      kvm_host=$(yq e .control-plane.kvm-hosts.[${i}] ${CONFIG_FILE})
-      createOkdNode ${NET_PREFIX}.6${i} ${CLUSTER_NAME}-master-${i} ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
-    done
-  fi
+  for i in 0 1 2
+  do
+    kvm_host=$(yq e .control-plane.kvm-hosts.${i} ${CONFIG_FILE})
+    createOkdNode ${NET_PREFIX}.6${i} ${CLUSTER_NAME}-master-${i} ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
+  done
   # Create DNS Records:
   createControlPlaneDNS
 fi
@@ -276,11 +264,6 @@ fi
 if [[ ${ADD_WORKER} == "true" ]]
 then
   let NODE_COUNT=$(yq e .compute-nodes.kvm-hosts ${CONFIG_FILE} | yq e 'length' -)
-  if [[ NODE_COUNT -gt 10 ]]
-  then
-    echo "This helper script does not support adding more than 10 worker nodes."
-    exit 1
-  fi
   if [[ ${INIT_CLUSTER} != "true" ]]
   then
     oc extract -n openshift-machine-api secret/worker-user-data --keys=userData --to=- > ${OKD_LAB_PATH}/ipxe-work-dir/worker.ign
@@ -292,18 +275,20 @@ then
   ceph_vol=$(yq e .compute-nodes.ceph_vol ${CONFIG_FILE})
   
   let i=0
+  let j=70
   while [[ i -lt ${NODE_COUNT} ]]
   do
-    kvm_host=$(yq e .compute-nodes.kvm-hosts.[${i}] ${CONFIG_FILE})
-    echo "${CLUSTER_NAME}-worker-${i}.${CLUSTER_DOMAIN}.   IN      A      ${NET_PREFIX}.7${i} ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
-    echo "7${i}.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-worker-${i}.${CLUSTER_DOMAIN}. ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-wk"
-    createOkdNode ${NET_PREFIX}.7${i} ${CLUSTER_NAME}-worker-${i} ${kvm_host} worker ${memory} ${cpu} ${root_vol} ${ceph_vol}
+    kvm_host=$(yq e .compute-nodes.kvm-hosts.${i} ${CONFIG_FILE})
+    echo "${CLUSTER_NAME}-worker-${i}.${CLUSTER_DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+    echo "${j}.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-worker-${i}.${CLUSTER_DOMAIN}. ; ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+    createOkdNode ${NET_PREFIX}.${j} ${CLUSTER_NAME}-worker-${i} ${kvm_host} worker ${memory} ${cpu} ${root_vol} ${ceph_vol}
     i=$(( ${i} + 1 ))
+    j=$(( ${j} + 1 ))
   done
 fi
 
-cat ${OKD_LAB_PATH}/dns-work-dir/forward.zone | ssh root@${ROUTER} "cat >> /etc/bind/db.${CLUSTER_DOMAIN}
-cat ${OKD_LAB_PATH}/dns-work-dir/reverse.zone | ssh root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}
+cat ${OKD_LAB_PATH}/dns-work-dir/forward.zone | ssh root@${ROUTER} "cat >> /etc/bind/db.${CLUSTER_DOMAIN}"
+cat ${OKD_LAB_PATH}/dns-work-dir/reverse.zone | ssh root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}"
 ${SSH} root@${ROUTER} "/etc/init.d/named restart"
 ${SSH} root@${BASTION_HOST} "mkdir -p /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}"
 ${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/ignition/*.ign root@${BASTION_HOST}:/usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/

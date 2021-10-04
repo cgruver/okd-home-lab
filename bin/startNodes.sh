@@ -46,37 +46,17 @@ then
   host_name="$(yq e .cluster-name ${CONFIG_FILE})-bootstrap"
   kvm_host=$(yq e .bootstrap.kvm-host ${CONFIG_FILE})
   startNode ${kvm_host} ${host_name}
-  echo "Pause for 15 seconds to stagger node start up."
-  sleep 15
 fi
 
 if [[ ${MASTER} == "true" ]]
 then
-  let KVM_NODES=$(yq e .control-plane.kvm-hosts ${CONFIG_FILE} | yq e 'length' -)
-  if [[ KVM_NODES -eq 1 ]]
-  then
-    AZ=1
-  elif [[ KVM_NODES -eq 3 ]]
-    AZ=3
-  fi
-  if [[ ${AZ} == "1" ]]
-  then
-    kvm_host=$(yq e .master.control-plane.kvm-hosts.[0] ${CONFIG_FILE})
-    for i in 0 1 2
-    do
-      startNode ${kvm_host} ${CLUSTER_NAME}-master-${i}
-      echo "Pause for 15 seconds to stagger node start up."
-      sleep 15
-    done
-  else
-    for i in 0 1 2
-    do
-      kvm_host=$(yq e .master.control-plane.kvm-hosts.[${i}] ${CONFIG_FILE})
-      startNode ${kvm_host} ${CLUSTER_NAME}-master-${i}
-      echo "Pause for 15 seconds to stagger node start up."
-      sleep 15
-    done
-  fi
+  for i in 0 1 2
+  do
+    kvm_host=$(yq e .control-plane.kvm-hosts.${i} ${CONFIG_FILE})
+    startNode ${kvm_host} ${CLUSTER_NAME}-master-${i}
+    echo "Pause for 15 seconds to stagger node start up."
+    sleep 15
+  done
 fi
 
 if [[ ${WORKER} == "true" ]]
@@ -85,7 +65,7 @@ then
   let i=0
   while [[ i -lt ${NODE_COUNT} ]]
   do
-    kvm_host=$(yq e .compute-nodes.kvm-hosts.[${i}] ${CONFIG_FILE})
+    kvm_host=$(yq e .compute-nodes.kvm-hosts.${i} ${CONFIG_FILE})
     startNode ${kvm_host} ${CLUSTER_NAME}-worker-${i}
     echo "Pause for 15 seconds to stagger node start up."
     sleep 15

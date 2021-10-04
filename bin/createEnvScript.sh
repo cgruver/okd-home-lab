@@ -61,7 +61,7 @@ EOF
 
 A=$( echo ${SUB_DOMAIN} | tr "[:lower:]" "[:upper:]" )
 cat << EOF > ${OKD_LAB_PATH}/work-dir/edge-router
-export ${A}_ROUTER=${ROUTER}
+export ${A}_ROUTER=${EDGE_IP}
 export ${A}_NETWORK=${NETWORK}
 EOF
 

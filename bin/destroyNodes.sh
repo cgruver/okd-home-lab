@@ -3,8 +3,10 @@
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 CLUSTER_NAME="okd4"
 RESET_LB=false
+DELETE_BOOTSTRAP=false
 DELETE_CLUSTER=false
 DELETE_WORKER=false
+DELETE_KVM_HOSTS=false
 
 for i in "$@"
 do
@@ -13,14 +15,23 @@ case $i in
     CONFIG_FILE="${i#*=}"
     shift # past argument=value
   ;;
-    -w|--worker)
+  -b|--bootstrap)
+    DELETE_BOOTSTRAP=true
+    shift
+  ;;
+  -w|--worker)
     DELETE_WORKER=true
     shift
   ;;
   -r|--reset)
     RESET_LB=true
+    DELETE_BOOTSTRAP=true
     DELETE_CLUSTER=true
     DELETE_WORKER=true
+    shift
+  ;;
+  -k|--kvm-hosts)
+    DELETE_KVM_HOSTS=true
     shift
   ;;
   *)
@@ -61,35 +72,28 @@ ${NETWORK}
 EOF
 NET_PREFIX_ARPA=${i3}.${i2}.${i1}
 
-if [[ ${DELETE_CLUSTER} == "true" ]]
+if [[ ${DELETE_BOOTSTRAP} == "true" ]]
 then
-  let KVM_NODES=$(yq e .control-plane.kvm-hosts ${CONFIG_FILE} | yq e 'length' -)
-  if [[ KVM_NODES -eq 1 ]]
-  then
-    AZ=1
-  elif [[ KVM_NODES -eq 3 ]]
-    AZ=3
-  fi
   #Delete Bootstrap
   host_name="$(yq e .cluster-name ${CONFIG_FILE})-bootstrap"
   kvm_host=$(yq e .bootstrap.kvm-host ${CONFIG_FILE})
 
   deleteNode ${host_name} ${kvm_host}
 
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${CLUSTER_DOMAIN} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-bs > /tmp/db.${CLUSTER_DOMAIN} && cp /tmp/db.${CLUSTER_DOMAIN} /etc/bind/db.${CLUSTER_DOMAIN}"
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-bs > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
+  ${SSH} root@${ROUTER} "cp /etc/haproxy.cfg /etc/haproxy.bootstrap && cat /etc/haproxy.cfg | grep -v bootstrap > /tmp/haproxy.no-bootstrap && mv /tmp/haproxy.no-bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy restart"
+fi
+
+if [[ ${DELETE_CLUSTER} == "true" ]]
+then
   #Delete Control Plane Nodes:
-  if [[ ${AZ} == "1" ]]
-  then
-    kvm_host=$(yq e .master.control-plane.kvm-hosts.[0] ${CONFIG_FILE})
-    deleteNode ${CLUSTER_NAME}-master-0 ${kvm_host}
-    deleteNode ${CLUSTER_NAME}-master-1 ${kvm_host}
-    deleteNode ${CLUSTER_NAME}-master-2 ${kvm_host}
-  else
-    for i in 0 1 2
-    do
-      kvm_host=$(yq e .master.control-plane.kvm-hosts.[${i}] ${CONFIG_FILE})
-      deleteNode ${CLUSTER_NAME}-master-${i} ${kvm_host}
-    done
-  fi
+  for i in 0 1 2
+  do
+    kvm_host=$(yq e .control-plane.kvm-hosts.${i} ${CONFIG_FILE})
+    deleteNode ${CLUSTER_NAME}-master-${i} ${kvm_host}
+  done
+
   ${SSH} root@${ROUTER} "cat /etc/bind/db.${CLUSTER_DOMAIN} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp > /tmp/db.${CLUSTER_DOMAIN} && cp /tmp/db.${CLUSTER_DOMAIN} /etc/bind/db.${CLUSTER_DOMAIN}"
   ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
 fi
@@ -100,7 +104,7 @@ then
   let i=0
   while [[ i -lt ${NODE_COUNT} ]]
   do
-    kvm_host=$(yq e .compute-nodes.kvm-hosts.[${i}] ${CONFIG_FILE})
+    kvm_host=$(yq e .compute-nodes.kvm-hosts.${i} ${CONFIG_FILE})
     deleteNode ${CLUSTER_NAME}-worker-${i} ${kvm_host}
     i=$(( ${i} + 1 ))
   done
