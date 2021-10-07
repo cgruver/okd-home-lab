@@ -69,5 +69,6 @@ then
     startNode ${kvm_host} ${CLUSTER_NAME}-worker-${i}
     echo "Pause for 15 seconds to stagger node start up."
     sleep 15
+    i=$(( ${i} + 1 ))
   done
 fi

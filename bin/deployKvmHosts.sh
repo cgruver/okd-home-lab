@@ -4,12 +4,17 @@ SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 INSTALL_URL="http://${BASTION_HOST}/install"
 CREATE_DNS="false"
+HOST_NAME=""
 
 for i in "$@"
 do
 case $i in
     -c=*|--config=*)
       CONFIG_FILE="${i#*=}"
+      shift
+    ;;
+    -h=*|--host=*)
+      HOST_NAME="${i#*=}"
       shift
     ;;
     *)
@@ -154,32 +159,15 @@ function createDnsRecords() {
   echo "${ip_octet}.${NET_PREFIX_ARPA}    IN      PTR     ${hostname}.${DOMAIN}. ; ${hostname}-${DOMAIN}-kvm" >> ${OKD_LAB_PATH}/boot-work-dir/reverse.zone
 }
 
-SUB_DOMAIN=$(yq e .cluster-sub-domain ${CONFIG_FILE})
-DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
-ROUTER=$(yq e .router ${CONFIG_FILE})
-NETWORK=$(yq e .network ${CONFIG_FILE})
-NETMASK=$(yq e .netmask ${CONFIG_FILE})
-LAB_PWD=$(cat ${OKD_LAB_PATH}/lab_host_pw)
-IFS=. read -r i1 i2 i3 i4 << EOF
-${NETWORK}
-EOF
-NET_PREFIX=${i1}.${i2}.${i3}
-NET_PREFIX_ARPA=${i3}.${i2}.${i1}
+function buildHostConfig() {
+  local index=${1}
 
-# Create temporary work directory
-mkdir -p ${OKD_LAB_PATH}/boot-work-dir
-
-HOST_COUNT=$(yq e .kvm-hosts ${CONFIG_FILE} | yq e 'length' -)
-
-let i=0
-while [[ i -lt ${HOST_COUNT} ]]
-do
-  hostname=$(yq e .kvm-hosts.[${i}].host-name ${CONFIG_FILE})
-  mac_addr=$(yq e .kvm-hosts.[${i}].mac-addr ${CONFIG_FILE})
-  ip_octet=$(yq e .kvm-hosts.[${i}].ip-octet ${CONFIG_FILE})
+  hostname=$(yq e ".kvm-hosts.[${index}].host-name" ${CONFIG_FILE})
+  mac_addr=$(yq e ".kvm-hosts.[${index}].mac-addr" ${CONFIG_FILE})
+  ip_octet=$(yq e ".kvm-hosts.[${index}].ip-octet" ${CONFIG_FILE})
   ip_addr=${NET_PREFIX}.${ip_octet}
-  disk1=$(yq e .kvm-hosts.[${i}].disks.disk1 ${CONFIG_FILE})
-  disk2=$(yq e .kvm-hosts.[${i}].disks.disk2 ${CONFIG_FILE})
+  disk1=$(yq e ".kvm-hosts.[${index}].disks.disk1" ${CONFIG_FILE})
+  disk2=$(yq e ".kvm-hosts.[${index}].disks.disk2" ${CONFIG_FILE})
 
   TEST=$(dig ${hostname}.${DOMAIN} +short)
   if [[ ${TEST} == "${ip_addr}" ]]
@@ -191,9 +179,54 @@ do
   fi
   createBootFile ${hostname} ${mac_addr} ${ip_addr}
   createKickStartFile ${hostname} ${mac_addr} ${ip_addr} ${disk1} ${disk2}
+}
 
-  i=$(( ${i} + 1 ))
-done
+SUB_DOMAIN=$(yq e ".cluster-sub-domain" ${CONFIG_FILE})
+DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
+ROUTER=$(yq e ".router" ${CONFIG_FILE})
+NETWORK=$(yq e ".network" ${CONFIG_FILE})
+NETMASK=$(yq e ".netmask" ${CONFIG_FILE})
+LAB_PWD=$(cat ${OKD_LAB_PATH}/lab_host_pw)
+IFS=. read -r i1 i2 i3 i4 << EOF
+${NETWORK}
+EOF
+NET_PREFIX=${i1}.${i2}.${i3}
+NET_PREFIX_ARPA=${i3}.${i2}.${i1}
+
+# Create temporary work directory
+mkdir -p ${OKD_LAB_PATH}/boot-work-dir
+
+HOST_COUNT=$(yq e ".kvm-hosts" ${CONFIG_FILE} | yq e 'length' -)
+
+if [[ ${HOST_NAME} == "" ]]
+then
+  let i=0
+  while [[ i -lt ${HOST_COUNT} ]]
+  do
+    buildHostConfig ${i}
+    i=$(( ${i} + 1 ))
+  done
+else
+  DONE=false
+  let i=0
+  while [[ i -lt ${HOST_COUNT} ]]
+  do
+    host_name=$(yq e ".kvm-hosts.[${i}].host-name" ${CONFIG_FILE})
+    echo "X${host_name}X"
+    if [[ ${host_name} == ${HOST_NAME} ]]
+    then
+      buildHostConfig ${i}
+      DONE=true
+      break
+    fi
+    i=$(( ${i} + 1 ))
+  done
+  if [[ ${DONE} == "false" ]]
+  then
+    echo "KVM HOST Entry Not Found In Config File."
+    exit 1
+  fi
+fi
 
 ${SCP} -r ${OKD_LAB_PATH}/boot-work-dir/*.ks root@${BASTION_HOST}:/usr/local/www/install/kickstart
 ${SCP} -r ${OKD_LAB_PATH}/boot-work-dir/*.ipxe root@${ROUTER}:/data/tftpboot/ipxe
