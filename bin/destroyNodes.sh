@@ -10,34 +10,37 @@ DELETE_KVM_HOSTS=false
 
 for i in "$@"
 do
-case $i in
-  -c=*|--config=*)
-    CONFIG_FILE="${i#*=}"
-    shift # past argument=value
-  ;;
-  -b|--bootstrap)
-    DELETE_BOOTSTRAP=true
-    shift
-  ;;
-  -w|--worker)
-    DELETE_WORKER=true
-    shift
-  ;;
-  -r|--reset)
-    RESET_LB=true
-    DELETE_BOOTSTRAP=true
-    DELETE_CLUSTER=true
-    DELETE_WORKER=true
-    shift
-  ;;
-  -k|--kvm-hosts)
-    DELETE_KVM_HOSTS=true
-    shift
-  ;;
-  *)
-    # put usage here:
-  ;;
-esac
+  case $i in
+    -c=*|--config=*)
+      CONFIG_FILE="${i#*=}"
+      shift # past argument=value
+    ;;
+    -d=*|--domain=*)
+      SUB_DOMAIN="${i#*=}"
+      shift
+    ;;
+    -b|--bootstrap)
+      DELETE_BOOTSTRAP=true
+      shift
+    ;;
+    -w|--worker)
+      DELETE_WORKER=true
+      shift
+    ;;
+    -r|--reset)
+      RESET_LB=true
+      DELETE_CLUSTER=true
+      DELETE_WORKER=true
+      shift
+    ;;
+    -k|--kvm-hosts)
+      DELETE_KVM_HOSTS=true
+      shift
+    ;;
+    *)
+      # put usage here:
+    ;;
+  esac
 done
 
 function deleteNode() {
@@ -45,7 +48,7 @@ function deleteNode() {
   local host_name=${1}
   local kvm_host=${2}
 
-  var=$(${SSH} root@${kvm_host}.${CLUSTER_DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
+  var=$(${SSH} root@${kvm_host}.${DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
   NET_MAC=$(echo ${var} | cut -d" " -f5)
 
   # Remove the iPXE boot file
@@ -53,19 +56,41 @@ function deleteNode() {
   ${SSH} root@${BASTION_HOST} "rm -f /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}/${NET_MAC//:/-}.ign"
 
   # Destroy the VM
-  ${SSH} root@${kvm_host}.${CLUSTER_DOMAIN} "virsh destroy ${host_name}"
-  ${SSH} root@${kvm_host}.${CLUSTER_DOMAIN} "virsh undefine ${host_name}"
-  ${SSH} root@${kvm_host}.${CLUSTER_DOMAIN} "virsh pool-destroy ${host_name}"
-  ${SSH} root@${kvm_host}.${CLUSTER_DOMAIN} "virsh pool-undefine ${host_name}"
-  ${SSH} root@${kvm_host}.${CLUSTER_DOMAIN} "rm -rf /VirtualMachines/${host_name}"
+  ${SSH} root@${kvm_host}.${DOMAIN} "virsh destroy ${host_name}"
+  ${SSH} root@${kvm_host}.${DOMAIN} "virsh undefine ${host_name}"
+  ${SSH} root@${kvm_host}.${DOMAIN} "virsh pool-destroy ${host_name}"
+  ${SSH} root@${kvm_host}.${DOMAIN} "virsh pool-undefine ${host_name}"
+  ${SSH} root@${kvm_host}.${DOMAIN} "rm -rf /VirtualMachines/${host_name}"
 }
 
-CLUSTER_NAME=$(yq e .cluster-name ${CONFIG_FILE})
-SUB_DOMAIN=$(yq e .cluster-sub-domain ${CONFIG_FILE})
-ROUTER=$(yq e .router ${CONFIG_FILE})
-CLUSTER_DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
-NETWORK=$(yq e .network ${CONFIG_FILE})
-INSTALL_URL="http://${BASTION_HOST}/install"
+DONE=false
+DOMAIN_COUNT=$(yq e ".sub-domain-configs" ${CONFIG_FILE} | yq e 'length' -)
+let i=0
+while [[ i -lt ${DOMAIN_COUNT} ]]
+do
+  domain_name=$(yq e ".sub-domain-configs.[${i}].name" ${CONFIG_FILE})
+  if [[ ${domain_name} == ${SUB_DOMAIN} ]]
+  then
+    INDEX=${i}
+    DONE=true
+    break
+  fi
+  i=$(( ${i} + 1 ))
+done
+if [[ ${DONE} == "false" ]]
+then
+  echo "Domain Entry Not Found In Config File."
+  exit 1
+fi
+
+LAB_DOMAIN=$(yq e ".domain" ${CONFIG_FILE})
+BASTION_HOST=$(yq e ".bastion-ip" ${CONFIG_FILE})
+SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
+ROUTER=$(yq e ".sub-domain-configs.[${INDEX}].router-ip" ${CONFIG_FILE})
+NETWORK=$(yq e ".sub-domain-configs.[${INDEX}].network" ${CONFIG_FILE})
+CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
+DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
+CLUSTER_NAME=$(yq e ".cluster-name" ${CLUSTER_CONFIG})
 
 IFS=. read -r i1 i2 i3 i4 << EOF
 ${NETWORK}
@@ -75,13 +100,13 @@ NET_PREFIX_ARPA=${i3}.${i2}.${i1}
 if [[ ${DELETE_BOOTSTRAP} == "true" ]]
 then
   #Delete Bootstrap
-  host_name="$(yq e .cluster-name ${CONFIG_FILE})-bootstrap"
-  kvm_host=$(yq e .bootstrap.kvm-host ${CONFIG_FILE})
+  host_name="$(yq e .cluster-name ${CLUSTER_CONFIG})-bootstrap"
+  kvm_host=$(yq e .bootstrap.kvm-host ${CLUSTER_CONFIG})
 
   deleteNode ${host_name} ${kvm_host}
 
-  ${SSH} root@${ROUTER} "cat /etc/bind/db.${CLUSTER_DOMAIN} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-bs > /tmp/db.${CLUSTER_DOMAIN} && cp /tmp/db.${CLUSTER_DOMAIN} /etc/bind/db.${CLUSTER_DOMAIN}"
-  ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-bs > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${DOMAIN} | grep -v ${CLUSTER_NAME}-${DOMAIN}-bs > /tmp/db.${DOMAIN} && cp /tmp/db.${DOMAIN} /etc/bind/db.${DOMAIN}"
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${DOMAIN}-bs > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
   ${SSH} root@${ROUTER} "cp /etc/haproxy.cfg /etc/haproxy.bootstrap && cat /etc/haproxy.cfg | grep -v bootstrap > /tmp/haproxy.no-bootstrap && mv /tmp/haproxy.no-bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy restart"
 fi
 
@@ -90,26 +115,26 @@ then
   #Delete Control Plane Nodes:
   for i in 0 1 2
   do
-    kvm_host=$(yq e .control-plane.kvm-hosts.${i} ${CONFIG_FILE})
+    kvm_host=$(yq e .control-plane.kvm-hosts.${i} ${CLUSTER_CONFIG})
     deleteNode ${CLUSTER_NAME}-master-${i} ${kvm_host}
   done
 
-  ${SSH} root@${ROUTER} "cat /etc/bind/db.${CLUSTER_DOMAIN} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp > /tmp/db.${CLUSTER_DOMAIN} && cp /tmp/db.${CLUSTER_DOMAIN} /etc/bind/db.${CLUSTER_DOMAIN}"
-  ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-cp > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${DOMAIN} | grep -v ${CLUSTER_NAME}-${DOMAIN}-cp > /tmp/db.${DOMAIN} && cp /tmp/db.${DOMAIN} /etc/bind/db.${DOMAIN}"
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${DOMAIN}-cp > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
 fi
 
 if [[ ${DELETE_WORKER} == "true" ]]
 then
-  let NODE_COUNT=$(yq e .compute-nodes.kvm-hosts ${CONFIG_FILE} | yq e 'length' -)
+  let NODE_COUNT=$(yq e .compute-nodes.kvm-hosts ${CLUSTER_CONFIG} | yq e 'length' -)
   let i=0
   while [[ i -lt ${NODE_COUNT} ]]
   do
-    kvm_host=$(yq e .compute-nodes.kvm-hosts.${i} ${CONFIG_FILE})
+    kvm_host=$(yq e .compute-nodes.kvm-hosts.${i} ${CLUSTER_CONFIG})
     deleteNode ${CLUSTER_NAME}-worker-${i} ${kvm_host}
     i=$(( ${i} + 1 ))
   done
-  ${SSH} root@${ROUTER} "cat /etc/bind/db.${CLUSTER_DOMAIN} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-wk > /tmp/db.${CLUSTER_DOMAIN} && cp /tmp/db.${CLUSTER_DOMAIN} /etc/bind/db.${CLUSTER_DOMAIN}"
-  ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${CLUSTER_DOMAIN}-wk > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${DOMAIN} | grep -v ${CLUSTER_NAME}-${DOMAIN}-wk > /tmp/db.${DOMAIN} && cp /tmp/db.${DOMAIN} /etc/bind/db.${DOMAIN}"
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${DOMAIN}-wk > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
 fi
 
 if [[ ${RESET_LB} == "true" ]]
