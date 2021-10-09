@@ -81,17 +81,17 @@ spec:
     useAllDevices: false
     config:
     nodes:
-    - name: "okd4-${CEPH_NODE}-0.dc1.${LAB_DOMAIN}"
+    - name: "okd4-${CEPH_NODE}-0.${REGION}.${LAB_DOMAIN}"
       devices:
       - name: "sdb"
         config:
           osdsPerDevice: "1"
-    - name: "okd4-${CEPH_NODE}-1.dc1.${LAB_DOMAIN}"
+    - name: "okd4-${CEPH_NODE}-1.${REGION}.${LAB_DOMAIN}"
       devices:
       - name: "sdb"
         config:
           osdsPerDevice: "1"
-    - name: "okd4-${CEPH_NODE}-2.dc1.${LAB_DOMAIN}"
+    - name: "okd4-${CEPH_NODE}-2.${REGION}.${LAB_DOMAIN}"
       devices:
       - name: "sdb"
         config:
