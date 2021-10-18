@@ -1,0 +1,83 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: create-trigger
+spec:
+  params:
+  - name: git-repo-url
+    type: string
+    description: "Git Repository URL"
+  - name: git-branch
+    type: string
+    description: "Git Branch to monitor"
+    default: "main"
+  - name: build-type
+    type: string
+    description: "Selected build type: quarkus-jvm, quarkus-fast-jar, quarkus-native, spring-boot"
+    default: "quarkus-fast-jar"
+  - name: deploy-type
+    type: string
+    description: "Pipeline to run: rolling-replace, blue-green, simple"
+    default: "rolling-replace"
+  volumes:
+  - name: trigger-template
+    configMap:
+      name: trigger-template
+  - name: gitlab-secret
+    secret:
+      secretName: gitlab-secret
+  steps:
+  - name: create-trigger
+    image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
+    imagePullPolicy: IfNotPresent
+    workingDir: /workspace
+    script: |
+      echo "Creating Application Resources"
+      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1)
+      oc process --local -f /workspace/templates/gitlab-trigger-template.yaml -p APP_NAME=${APP_NAME} -p GIT_REPOSITORY=$(params.git-repo-url) -p GIT_BRANCH=$(params.git-branch) -p BUILD_TYPE=$(params.build-type) -p DEPLOY_TYPE=$(params.deploy-type) | oc apply -f -
+    volumeMounts:
+    - name: trigger-template
+      mountPath: /workspace/templates
+  - name: create-route
+    image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: gitlab-secret
+      mountPath: /var/secret
+    env:
+    - name: user.home
+      value: /tekton/home
+    workingDir: "/workspace"
+    script: |
+      echo -----------------------------------
+      echo "Creating Route for Event Listener"
+      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1)
+      SVC_NAME=$(oc get el ${APP_NAME}-listener -o=jsonpath='{.status.configuration.generatedName}')
+      oc expose service ${SVC_NAME}
+      echo $(oc get route ${SVC_NAME} -o=jsonpath='{.spec.host}') > /workspace/hook-url
+      echo -----------------------------------
+  - name: create-webhook
+    image: image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-builder:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: gitlab-secret
+      mountPath: /var/secret
+    env:
+    - name: user.home
+      value: /tekton/home
+    workingDir: "/workspace"
+    script: |
+      echo -----------------------------------
+      echo "Creating Webhook"
+      TEST=$(echo $(params.git-repo-url) | cut -d'@' -f1)
+      if [[ $TEST == "git" ]]
+      then
+        PROJECT_PATH=$(echo $(params.git-repo-url) | cut -d":" -f2 | cut -d"." -f1 | sed "s|/|%2F|g")
+        API_URL=http://$(echo $(params.git-repo-url) | cut -d"@" -f2 | cut -d":" -f1):8181/api/v4/projects/${PROJECT_PATH}/hooks
+      else
+        PROJECT_PATH=$(echo $(params.git-repo-url) | cut -d"/" -f4- | cut -d"." -f1 | sed "s|/|%2F|g")
+        API_URL=$(echo $(params.git-repo-url) | cut -d"/" -f-3)/api/v4/projects/${PROJECT_PATH}/hooks
+      fi
+      HOOK_URL=http://$(cat /workspace/hook-url)
+      curl -X POST -H "PRIVATE-TOKEN: $(cat /var/secret/access-token)" -d "push_events=true" -d "push_events_branch_filter=$(params.git-branch)" -d "token=$(cat /var/secret/hook-token)" -d "url=${HOOK_URL}" -d "enable_ssl_verification=false" ${API_URL}
+      echo -----------------------------------

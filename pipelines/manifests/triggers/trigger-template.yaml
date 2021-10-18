@@ -1,0 +1,97 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trigger-template
+data:
+  gitlab-trigger-template.yaml: |
+    apiVersion: template.openshift.io/v1
+    kind: Template
+    metadata:
+      annotations:
+        template.openshift.io/bindable: "false"
+      name: gitlab-tekton-trigger
+    objects:
+      - apiVersion: triggers.tekton.dev/v1alpha1
+        kind: TriggerTemplate
+        metadata:
+          name: ${APP_NAME}
+        spec:
+          params:
+            - name: git-checkout-sha
+              description: The git SHA to checkout
+              default: main
+            - name: git-repo-url
+              description: The git repository url
+            - name: config-git-path
+              description: "Git repository path for application configuration"
+          resourcetemplates:
+            - apiVersion: tekton.dev/v1beta1
+              kind: PipelineRun
+              metadata:
+                name: ${APP_NAME}-$(uid)
+              spec:
+                serviceAccountName: pipeline
+                pipelineRef: 
+                  name: build-and-deploy-java
+                params:
+                - name: build-type
+                  value: ${BUILD_TYPE}
+                - name: deploy-type
+                  value: ${DEPLOY_TYPE}
+                - name: git-repo-url
+                  value: $(tt.params.git-repo-url)
+                - name: git-checkout
+                  value: $(tt.params.git-checkout-sha)
+                - name: clone-type
+                  value: "sha"
+                - name: config-git-path
+                  value: $(tt.params.config-git-path)
+
+      - apiVersion: triggers.tekton.dev/v1alpha1
+        kind: TriggerBinding
+        metadata:
+          name: ${APP_NAME}
+        spec:
+          params:
+            - name: git-checkout-sha
+              value: "$(body.checkout_sha)"
+            - name: git-repo-url
+              value: "$(body.repository.git_ssh_url)"
+            - name: config-git-path
+              value: "${CONFIG_PATH}"
+
+      - apiVersion: triggers.tekton.dev/v1alpha1
+        kind: EventListener
+        metadata:
+          name: ${APP_NAME}-listener
+        spec:
+          serviceAccountName: pipeline
+          triggers:
+            - bindings:
+              - ref: ${APP_NAME}
+              template:
+                name: ${APP_NAME}
+
+    parameters:
+      -
+        name: APP_NAME
+        required: true
+      -
+        name: GIT_REPOSITORY
+        required: true
+      -
+        name: GIT_BRANCH
+        required: true
+        value: "main"
+      - 
+        name: BUILD_TYPE
+        required: true
+      -
+        name: DEPLOY_TYPE
+        required: true
+        value: "rolling-replace"
+      - 
+        name: CONFIG_PATH
+        required: true
+        value: "/deploy-config"
+

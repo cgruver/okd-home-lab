@@ -1,0 +1,58 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: build-and-deploy-java
+spec:
+  params:
+  - name: build-type
+    type: string
+    description: "Selected build type: quarkus-jvm, quarkus-fast-jar, quarkus-native, spring-boot"
+  - name: deploy-type
+    type: string
+    description: "Selected deploy type: rolling-replace, blue-green, simple"
+  - name: git-repo-url
+    type: string
+    description: "Git Repository URL"
+  - name: git-checkout
+    type: string
+    description: "Git code to checkout, either a branch name or a commit sha.  Determined by the value of clone-type"
+    default: "main"
+  - name: clone-type
+    type: string
+    description: "The type of git clone: sha, branch"
+    default: "branch"
+  - name: config-git-path
+    type: string
+    description: "Config Git Path"
+    default: "/deploy-config"
+  tasks:
+  - name: build
+    taskRef:
+      name: build-java
+    params:
+    - name: build-type
+      value: $(params.build-type)
+    - name: git-repo-url
+      value: $(params.git-repo-url)
+    - name: git-checkout
+      value: $(params.git-checkout)
+    - name: clone-type
+      value: $(params.clone-type)
+  - name: deploy-rolling-replace
+    taskRef:
+      name: deploy-rolling-replace
+    runAfter:
+    - build
+    when:
+    - input: "$(params.deploy-type)"
+      operator: in
+      values: ["rolling-replace"]
+    params:
+    - name: git-repo-url
+      value: $(params.git-repo-url)
+    - name: git-checkout
+      value: $(params.git-checkout)
+    - name: clone-type
+      value: $(params.clone-type)
+    - name: config-git-path
+      value: $(params.config-git-path)

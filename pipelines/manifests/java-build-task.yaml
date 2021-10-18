@@ -1,0 +1,135 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-java
+spec:
+  stepTemplate:
+    volumeMounts:
+    - name: varlibc
+      mountPath: /var/lib/containers
+    - name: maven-settings
+      mountPath: /tmp/maven-settings
+  params:
+  - name: build-type
+    type: string
+    description: "Selected build type: quarkus-jvm, quarkus-fast-jar, quarkus-native, spring-boot"
+  - name: git-repo-url
+    type: string
+    description: "Git Repository URL"
+  - name: git-checkout
+    type: string
+    description: "Git code to checkout, either a branch name or a commit sha.  Determined by the value of clone-type"
+  - name: clone-type
+    type: string
+    description: "The type of git clone: sha, branch"
+    default: "branch"
+  steps:
+  - name: prep-build
+    image: image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-builder:latest
+    imagePullPolicy: IfNotPresent
+    script: |
+      case $(params.clone-type) in
+        sha)
+          mkdir -p /workspace/source
+          cd /workspace/source
+          git init
+          git remote add origin $(params.git-repo-url)
+          git pull origin $(params.git-checkout)
+          echo "$(params.git-checkout)" > /workspace/git-sha.out
+        ;;
+        branch)
+          git clone -b $(params.git-checkout) --single-branch $(params.git-repo-url) /workspace/source
+          cd /workspace/source
+          echo "$(git rev-parse HEAD)" > /workspace/git-sha.out
+        ;;
+      esac
+      cp /tmp/maven-settings/settings.xml /workspace/source
+    env:
+    - name: user.home
+      value: /tekton/home
+    workingDir: "/"
+  - name: build-sources
+    image: image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-builder:latest
+    imagePullPolicy: IfNotPresent
+    script: |
+      MVN_ARGS="-DskipTests -Dmaven.wagon.http.ssl.insecure=true -s./settings.xml -DappName=app"
+      case $(params.build-type) in
+        spring-boot)
+        ;;
+        quarkus-jvm)
+        ;;
+        quarkus-fast-jar)
+        MVN_ARGS="${MVN_ARGS} -Dquarkus.package.type=fast-jar"
+        ;;
+        quarkus-native)
+        MVN_ARGS="${MVN_ARGS} -Pnative"
+        ;;
+      esac
+      mvn ${MVN_ARGS} clean package
+    env:
+    - name: user.home
+      value: /tekton/home
+    workingDir: "/workspace/source"
+  - name: build-image
+    image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:nonroot
+    imagePullPolicy: IfNotPresent
+    script: |
+      export BUILDAH_ISOLATION=chroot
+      mkdir -p ${HOME}/.config/containers
+      echo "[storage]" > ${HOME}/.config/containers/storage.conf
+      echo "driver=\"vfs\"" >> ${HOME}/.config/containers/storage.conf
+      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1)
+      SHA=$(cat /workspace/git-sha.out)
+      DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/${APP_NAME}:${SHA:0:7}"
+      if [[ $(params.build-type) == "quarkus-native" ]]
+      then
+        CONTAINER=$(buildah from image-registry.openshift-image-registry.svc:5000/openshift/ubi-minimal:latest)
+      else
+        CONTAINER=$(buildah from image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-app-runner:latest )
+      fi
+      case $(params.build-type) in
+        spring-boot)
+        buildah copy ${CONTAINER} ./target/app.jar /deployments/app.jar
+        ;;
+        quarkus-jvm)
+        buildah copy ${CONTAINER} ./target/lib/* /deployments/lib/
+        buildah copy ${CONTAINER} ./target/app-runner.jar /deployments/app.jar
+        ;;
+        quarkus-fast-jar)
+        buildah copy ${CONTAINER} ./target/quarkus-app/lib/ /deployments/lib/
+        buildah copy ${CONTAINER} ./target/quarkus-app/quarkus-run.jar /deployments/app.jar
+        buildah copy ${CONTAINER} ./target/quarkus-app/app/ /deployments/app/
+        buildah copy ${CONTAINER} ./target/quarkus-app/quarkus/ /deployments/quarkus/
+        ;;
+        quarkus-native)
+        buildah copy ${CONTAINER} ./target/app-runner /application
+        buildah config --entrypoint '["/application", "-Dquarkus.http.host=0.0.0.0", "${JAVA_OPTIONS}"]' --port 8080 ${CONTAINER}
+      esac
+      buildah config --label GIT_COMMIT=${SHA} --author="Tekton" ${CONTAINER}
+      buildah config --label GIT_URL=$(params.git-repo-url) ${CONTAINER}
+      buildah commit ${CONTAINER} ${DESTINATION_IMAGE}
+      buildah unmount ${CONTAINER}
+    env:
+    - name: user.home
+      value: /tekton/home
+    workingDir: "/workspace/source"
+  - name: push-image
+    image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:nonroot
+    imagePullPolicy: IfNotPresent
+    script: |
+      echo "tekton:x:$(id -u):0:tekton user:${HOME}:/sbin/nologin" >> /etc/passwd
+      echo $(id -u):1100000000:65536 >> /etc/subuid
+      echo $(id -u):1100000000:65536 >> /etc/subgid
+      export BUILDAH_ISOLATION=chroot
+      SHA=$(cat /workspace/git-sha.out)
+      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1)
+      DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/${APP_NAME}"
+      buildah push ${DESTINATION_IMAGE}:${SHA:0:7} docker://${DESTINATION_IMAGE}:${SHA:0:7}
+      buildah push ${DESTINATION_IMAGE}:${SHA:0:7} docker://${DESTINATION_IMAGE}:latest
+    workingDir: "/workspace/source"
+  volumes:
+  - name: varlibc
+    emptyDir: {}
+  - name: maven-settings
+    configMap:
+      name: maven-settings-xml
