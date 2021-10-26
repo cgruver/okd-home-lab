@@ -71,7 +71,7 @@ spec:
       value: /tekton/home
     workingDir: "/workspace/source"
   - name: build-image
-    image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:nonroot
+    image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:latest
     imagePullPolicy: IfNotPresent
     script: |
       export BUILDAH_ISOLATION=chroot
@@ -114,7 +114,7 @@ spec:
       value: /tekton/home
     workingDir: "/workspace/source"
   - name: push-image
-    image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:nonroot
+    image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:latest
     imagePullPolicy: IfNotPresent
     script: |
       echo "tekton:x:$(id -u):0:tekton user:${HOME}:/sbin/nologin" >> /etc/passwd

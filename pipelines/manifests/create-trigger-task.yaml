@@ -1,0 +1,121 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: create-trigger
+spec:
+  params:
+  - name: git-repo-type
+    type: string
+    description: "Git Repo Type: |gitea|gitlab|"
+    default: "gitea"
+  - name: git-repo-api-port
+    type: string
+    description: "Port which the git repo API is listening on"
+    default: "3000"
+  - name: git-repo-url
+    type: string
+    description: "Git Repository URL"
+  - name: git-branch
+    type: string
+    description: "Git Branch to monitor"
+    default: "main"
+  - name: build-type
+    type: string
+    description: "Selected build type: quarkus-jvm, quarkus-fast-jar, quarkus-native, spring-boot"
+    default: "quarkus-fast-jar"
+  - name: deploy-type
+    type: string
+    description: "Pipeline to run: rolling-replace, blue-green, simple"
+    default: "rolling-replace"
+  volumes:
+  - name: trigger-template
+    configMap:
+      name: trigger-template
+  - name: git-secret
+    secret:
+      secretName: git-secret
+  steps:
+  - name: create-trigger
+    image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
+    imagePullPolicy: IfNotPresent
+    workingDir: /workspace
+    script: |
+      echo "Creating Application Resources"
+      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1 | tr "[:lower:]" "[:upper:]")
+      oc process --local -f /workspace/templates/gitlab-trigger-template.yaml -p APP_NAME=${APP_NAME} -p GIT_REPOSITORY=$(params.git-repo-url) -p GIT_BRANCH=$(params.git-branch) -p BUILD_TYPE=$(params.build-type) -p DEPLOY_TYPE=$(params.deploy-type) | oc apply -f -
+      case $(params.git-repo-type) in
+        gitea)
+          oc process --local -f /workspace/templates/gitea-trigger-binding.yaml -p APP_NAME=${APP_NAME} | oc apply -f -
+        ;;
+        gitlab)
+          oc process --local -f /workspace/templates/gitlab-trigger-binding.yaml -p APP_NAME=${APP_NAME} | oc apply -f -
+        ;;
+        echo "APP_NAME=${APP_NAME}" >> /workspace/env-vars
+    volumeMounts:
+    - name: trigger-template
+      mountPath: /workspace/templates
+  - name: create-route
+    image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: git-secret
+      mountPath: /var/secret
+    env:
+    - name: user.home
+      value: /tekton/home
+    workingDir: "/workspace"
+    script: |
+      echo -----------------------------------
+      echo "Creating Route for Event Listener"
+      . /workspace/env-vars
+      SVC_NAME=$(oc get el ${APP_NAME}-listener -o=jsonpath='{.status.configuration.generatedName}')
+      oc expose service ${SVC_NAME}
+      HOOK_URL=$(oc get route ${SVC_NAME} -o=jsonpath='{.spec.host}')
+      SECRET=$(uid)
+      echo "GIT_HOOK_SECRET=${SECRET}"
+      oc create secret generic ${APP_NAME}-githook-secret
+      echo "HOOK_URL=${HOOK_URL}" >> /workspace/env-vars
+      echo "SECRET=${SECRET}" >> /workspace/env-vars
+      echo -----------------------------------
+
+  - name: create-webhook
+    image: image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-builder:latest
+    imagePullPolicy: IfNotPresent
+    volumeMounts:
+    - name: git-secret
+      mountPath: /var/secret
+    env:
+    - name: user.home
+      value: /tekton/home
+    workingDir: "/workspace"
+    script: |
+      echo -----------------------------------
+      echo "Creating Webhook"
+      . /workspace/env-vars
+      . /var/secret/git-creds
+      
+      TEST=$(echo $(params.git-repo-url) | cut -d'@' -f1)
+      if [[ $TEST == "git" ]]
+      then
+        PROJECT_PATH=$(echo $(params.git-repo-url) | cut -d":" -f2 | cut -d"." -f1 | sed "s|/|%2F|g")
+        GIT_HOST=$(echo $(params.git-repo-url) | cut -d"@" -f2 | cut -d":" -f1)
+      else
+        PROJECT_PATH=$(echo $(params.git-repo-url) | cut -d"/" -f4- | cut -d"." -f1 | sed "s|/|%2F|g")
+        GIT_HOST=$(echo $(params.git-repo-url) | cut -d"/" -f3 | cut -d":" -f1) 
+      fi
+      case $(params.git-repo-type) in
+        gitea)
+          
+          API_PATH="/api/v1/repos/${PROJECT_PATH}/hooks"
+          API_URL="https://${GIT_HOST}:$(params.git-repo-api-port)${API_PATH}"
+          API_KEY=$(curl -XPOST -H "Content-Type: application/json"  -k -d '{"name":"${APP_NAME}-$(params.git-branch)-token"}' -u ${GIT_CREDS} https://gitea.${LAB_DOMAIN}:3000/api/v1/users/library-sa/tokens | jq -r '.sha1')
+          curl --location --request POST ${API_URL} --header 'Content-Type: application/json' --header "Authorization: token ${API_KEY}" --header 'Content-Type: application/json' --data-raw {"active":true,"branch_filter":"$(params.git-branch)","config":{"content_type":"json","url":"${HOOK_URL}","http_method": "post","secret":"${SECRET}"},"events": ["push"],"type": "gitea"}
+        ;;
+        gitlab)
+          API_PATH="/api/v4/projects/${PROJECT_PATH}/hooks"
+          API_URL="https://${GIT_HOST}:$(params.git-repo-api-port)${API_PATH}"
+          API_KEY=""
+          curl -X POST -H "PRIVATE-TOKEN: $(cat /var/secret/access-token)" -d "push_events=true" -d "push_events_branch_filter=$(params.git-branch)" -d "token=${API_KEY}" -d "url=${HOOK_URL}" -d "enable_ssl_verification=false" ${API_URL}
+        ;;
+      esac
+      echo -----------------------------------

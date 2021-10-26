@@ -22,8 +22,6 @@ data:
               default: main
             - name: git-repo-url
               description: The git repository url
-            - name: config-git-path
-              description: "Git repository path for application configuration"
           resourcetemplates:
             - apiVersion: tekton.dev/v1beta1
               kind: PipelineRun
@@ -45,21 +43,7 @@ data:
                 - name: clone-type
                   value: "sha"
                 - name: config-git-path
-                  value: $(tt.params.config-git-path)
-
-      - apiVersion: triggers.tekton.dev/v1alpha1
-        kind: TriggerBinding
-        metadata:
-          name: ${APP_NAME}
-        spec:
-          params:
-            - name: git-checkout-sha
-              value: "$(body.checkout_sha)"
-            - name: git-repo-url
-              value: "$(body.repository.git_ssh_url)"
-            - name: config-git-path
-              value: "${CONFIG_PATH}"
-
+                  value: "${CONFIG_PATH}"
       - apiVersion: triggers.tekton.dev/v1alpha1
         kind: EventListener
         metadata:
@@ -71,7 +55,6 @@ data:
               - ref: ${APP_NAME}
               template:
                 name: ${APP_NAME}
-
     parameters:
       -
         name: APP_NAME
@@ -95,3 +78,48 @@ data:
         required: true
         value: "/deploy-config"
 
+  gitlab-trigger-binding.yaml: |
+    apiVersion: template.openshift.io/v1
+    kind: Template
+    metadata:
+      annotations:
+        template.openshift.io/bindable: "false"
+      name: gitlab-tekton-trigger-binding
+    objects:
+      - apiVersion: triggers.tekton.dev/v1alpha1
+        kind: TriggerBinding
+        metadata:
+          name: ${APP_NAME}
+        spec:
+          params:
+            - name: git-checkout-sha
+              value: "$(body.checkout_sha)"
+            - name: git-repo-url
+              value: "$(body.repository.git_ssh_url)"
+    parameters:
+      -
+        name: APP_NAME
+        required: true
+
+  gitea-trigger-binding.yaml: |
+    apiVersion: template.openshift.io/v1
+    kind: Template
+    metadata:
+      annotations:
+        template.openshift.io/bindable: "false"
+      name: gitea-tekton-trigger-binding
+    objects:
+      - apiVersion: triggers.tekton.dev/v1alpha1
+        kind: TriggerBinding
+        metadata:
+          name: ${APP_NAME}
+        spec:
+          params:
+            - name: git-checkout-sha
+              value: "$(body.after)"
+            - name: git-repo-url
+              value: "$(body.repository.ssh_url)"
+    parameters:
+      -
+        name: APP_NAME
+        required: true
