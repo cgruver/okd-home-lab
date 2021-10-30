@@ -25,7 +25,7 @@ spec:
     default: "branch"
   steps:
   - name: prep-build
-    image: image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-builder:latest
+    image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
     script: |
       case $(params.clone-type) in
@@ -49,7 +49,7 @@ spec:
       value: /tekton/home
     workingDir: "/"
   - name: build-sources
-    image: image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-builder:latest
+    image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
     script: |
       MVN_ARGS="-DskipTests -Dmaven.wagon.http.ssl.insecure=true -s./settings.xml -DappName=app"
@@ -85,7 +85,7 @@ spec:
       then
         CONTAINER=$(buildah from image-registry.openshift-image-registry.svc:5000/openshift/ubi-minimal:latest)
       else
-        CONTAINER=$(buildah from image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-app-runner:latest )
+        CONTAINER=$(buildah from image-registry.openshift-image-registry.svc:5000/openshift/java-11-app-runner:latest )
       fi
       case $(params.build-type) in
         spring-boot)

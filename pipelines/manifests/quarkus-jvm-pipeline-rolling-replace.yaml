@@ -20,8 +20,6 @@ objects:
       params:
       - name: git-repo-type
         value: ${GIT_REPO_TYPE}
-      - name: git-repo-api-port
-        value: ${GIT_REPO_API_PORT}
       - name: git-repo-url
         value: ${GIT_REPOSITORY}
       - name: git-branch
@@ -49,12 +47,6 @@ parameters:
   required: true
   value: "gitea"
 -
-  description: "Port which the git repo API is listening o"
-  displayName: "Git Repo API Port"
-  name: GIT_REPO_API_PORT
-  required: true
-  value: "3000"
-- 
   description: "auto-filled random task name"
   displayName: "Auto-Filled (Leave this field blank)"
   name: RANDOM_TASK

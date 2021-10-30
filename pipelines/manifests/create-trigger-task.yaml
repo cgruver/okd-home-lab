@@ -8,10 +8,6 @@ spec:
     type: string
     description: "Git Repo Type: |gitea|gitlab|"
     default: "gitea"
-  - name: git-repo-api-port
-    type: string
-    description: "Port which the git repo API is listening on"
-    default: "3000"
   - name: git-repo-url
     type: string
     description: "Git Repository URL"
@@ -31,9 +27,6 @@ spec:
   - name: trigger-template
     configMap:
       name: trigger-template
-  - name: git-secret
-    secret:
-      secretName: git-secret
   steps:
   - name: create-trigger
     image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
@@ -57,9 +50,6 @@ spec:
   - name: create-route
     image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
     imagePullPolicy: IfNotPresent
-    volumeMounts:
-    - name: git-secret
-      mountPath: /var/secret
     env:
     - name: user.home
       value: /tekton/home
@@ -79,11 +69,8 @@ spec:
       echo -----------------------------------
 
   - name: create-webhook
-    image: image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-builder:latest
+    image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
-    volumeMounts:
-    - name: git-secret
-      mountPath: /var/secret
     env:
     - name: user.home
       value: /tekton/home
@@ -92,30 +79,22 @@ spec:
       echo -----------------------------------
       echo "Creating Webhook"
       . /workspace/env-vars
-      . /var/secret/git-creds
+
+      PROJECT_PATH=$(echo $(params.git-repo-url) | cut -d"/" -f4- | cut -d"." -f1 | sed "s|/|%2F|g")
+      GIT_URL=$(echo $(params.git-repo-url) | cut -d"/" -f-3) 
       
-      TEST=$(echo $(params.git-repo-url) | cut -d'@' -f1)
-      if [[ $TEST == "git" ]]
-      then
-        PROJECT_PATH=$(echo $(params.git-repo-url) | cut -d":" -f2 | cut -d"." -f1 | sed "s|/|%2F|g")
-        GIT_HOST=$(echo $(params.git-repo-url) | cut -d"@" -f2 | cut -d":" -f1)
-      else
-        PROJECT_PATH=$(echo $(params.git-repo-url) | cut -d"/" -f4- | cut -d"." -f1 | sed "s|/|%2F|g")
-        GIT_HOST=$(echo $(params.git-repo-url) | cut -d"/" -f3 | cut -d":" -f1) 
-      fi
       case $(params.git-repo-type) in
         gitea)
-          
+          GIT_CREDS="$(cat /tekton/creds-secrets/gitea-secret/username):$(cat /tekton/creds-secrets/gitea-secret/password)"
           API_PATH="/api/v1/repos/${PROJECT_PATH}/hooks"
-          API_URL="https://${GIT_HOST}:$(params.git-repo-api-port)${API_PATH}"
-          API_KEY=$(curl -XPOST -H "Content-Type: application/json"  -k -d '{"name":"${APP_NAME}-$(params.git-branch)-token"}' -u ${GIT_CREDS} https://gitea.${LAB_DOMAIN}:3000/api/v1/users/library-sa/tokens | jq -r '.sha1')
-          curl --location --request POST ${API_URL} --header 'Content-Type: application/json' --header "Authorization: token ${API_KEY}" --header 'Content-Type: application/json' --data-raw {"active":true,"branch_filter":"$(params.git-branch)","config":{"content_type":"json","url":"${HOOK_URL}","http_method": "post","secret":"${SECRET}"},"events": ["push"],"type": "gitea"}
+          API_URL="${GIT_URL}${API_PATH}"
+          curl --location --request POST ${API_URL} -u ${GIT_CREDS} --header 'Content-Type: application/json' --header 'Content-Type: application/json' --data-raw {"active":true,"branch_filter":"$(params.git-branch)","config":{"content_type":"json","url":"${HOOK_URL}","http_method": "post","secret":"${SECRET}"},"events": ["push"],"type": "gitea"}
         ;;
         gitlab)
           API_PATH="/api/v4/projects/${PROJECT_PATH}/hooks"
-          API_URL="https://${GIT_HOST}:$(params.git-repo-api-port)${API_PATH}"
+          API_URL="${GIT_URL}${API_PATH}"
           API_KEY=""
-          curl -X POST -H "PRIVATE-TOKEN: $(cat /var/secret/access-token)" -d "push_events=true" -d "push_events_branch_filter=$(params.git-branch)" -d "token=${API_KEY}" -d "url=${HOOK_URL}" -d "enable_ssl_verification=false" ${API_URL}
+          # curl -X POST -u ${GIT_CREDS} -d "push_events=true" -d "push_events_branch_filter=$(params.git-branch)" -d "token=${API_KEY}" -d "url=${HOOK_URL}" -d "enable_ssl_verification=false" ${API_URL}
         ;;
       esac
       echo -----------------------------------

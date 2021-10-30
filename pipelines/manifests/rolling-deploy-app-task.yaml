@@ -24,7 +24,7 @@ spec:
       name: app-deployment-template
   steps:
   - name: prep-config
-    image: image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-builder:latest
+    image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
     script: |
       case $(params.clone-type) in

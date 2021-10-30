@@ -84,7 +84,7 @@ data:
                     value: /var/run/secrets/java.io/keystores/truststore.jks
                   - name: password
                     value: changeit
-                image: 'image-registry.openshift-image-registry.svc:5000/openshift/jdk-11-app-runner:latest'
+                image: 'image-registry.openshift-image-registry.svc:5000/openshift/java-11-app-runner:latest'
                 imagePullPolicy: IfNotPresent
                 name: pem-to-truststore
                 resources: {}
