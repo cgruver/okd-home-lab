@@ -25,7 +25,7 @@ objects:
       - name: build-type
         value: quarkus-fast-jar
       - name: deploy-type
-        value: rolling-replac
+        value: rolling-replace
 parameters:
 - 
   description: "Git repository for source code"

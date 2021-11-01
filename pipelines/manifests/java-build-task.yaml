@@ -28,9 +28,10 @@ spec:
     image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
     script: |
+      mkdir -p /workspace/source
+      chmod 777 /workspace/source
       case $(params.clone-type) in
         sha)
-          mkdir -p /workspace/source
           cd /workspace/source
           git init
           git remote add origin $(params.git-repo-url)
@@ -70,57 +71,60 @@ spec:
     - name: user.home
       value: /tekton/home
     workingDir: "/workspace/source"
-  - name: build-image
+  - name: prep-workingdir-for-buildah
     image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:latest
     imagePullPolicy: IfNotPresent
     script: |
-      mkdir -p ${HOME}/.config/containers
-      echo "[storage]" > ${HOME}/.config/containers/storage.conf
-      echo "driver=\"vfs\"" >> ${HOME}/.config/containers/storage.conf
-      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1)
-      SHA=$(cat /workspace/git-sha.out)
-      DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/${APP_NAME}:${SHA:0:7}"
-      if [[ $(params.build-type) == "quarkus-native" ]]
-      then
-        CONTAINER=$(buildah from image-registry.openshift-image-registry.svc:5000/openshift/ubi-minimal:latest)
-      else
-        CONTAINER=$(buildah from image-registry.openshift-image-registry.svc:5000/openshift/java-11-app-runner:latest )
-      fi
-      case $(params.build-type) in
-        spring-boot)
-        buildah copy ${CONTAINER} ./target/app.jar /deployments/app.jar
-        ;;
-        quarkus-jvm)
-        buildah copy ${CONTAINER} ./target/lib/* /deployments/lib/
-        buildah copy ${CONTAINER} ./target/app-runner.jar /deployments/app.jar
-        ;;
-        quarkus-fast-jar)
-        buildah copy ${CONTAINER} ./target/quarkus-app/lib/ /deployments/lib/
-        buildah copy ${CONTAINER} ./target/quarkus-app/quarkus-run.jar /deployments/app.jar
-        buildah copy ${CONTAINER} ./target/quarkus-app/app/ /deployments/app/
-        buildah copy ${CONTAINER} ./target/quarkus-app/quarkus/ /deployments/quarkus/
-        ;;
-        quarkus-native)
-        buildah copy ${CONTAINER} ./target/app-runner /application
-        buildah config --entrypoint '["/application", "-Dquarkus.http.host=0.0.0.0", "${JAVA_OPTIONS}"]' --port 8080 ${CONTAINER}
-      esac
-      buildah config --label GIT_COMMIT=${SHA} --author="Tekton" ${CONTAINER}
-      buildah config --label GIT_URL=$(params.git-repo-url) ${CONTAINER}
-      buildah commit ${CONTAINER} ${DESTINATION_IMAGE}
-      buildah unmount ${CONTAINER}
+      chmod 777 /workspace/source
+      chown -R 1000 /tekton/home
     env:
     - name: user.home
       value: /tekton/home
     workingDir: "/workspace/source"
-  - name: push-image
+  - name: build-image
     image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:latest
+    securityContext:
+      runAsUser: 1000
     imagePullPolicy: IfNotPresent
     script: |
-      SHA=$(cat /workspace/git-sha.out)
       APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1)
+      SHA=$(cat /workspace/git-sha.out)
+      BUILDAH_ARGS="--storage-driver vfs"
+      export BUILDAH_ISOLATION=chroot
       DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/${APP_NAME}"
-      buildah push ${DESTINATION_IMAGE}:${SHA:0:7} docker://${DESTINATION_IMAGE}:${SHA:0:7}
-      buildah push ${DESTINATION_IMAGE}:${SHA:0:7} docker://${DESTINATION_IMAGE}:latest
+      if [[ $(params.build-type) == "quarkus-native" ]]
+      then
+        CONTAINER=$(buildah ${BUILDAH_ARGS} from image-registry.openshift-image-registry.svc:5000/openshift/ubi-minimal:latest)
+      else
+        CONTAINER=$(buildah ${BUILDAH_ARGS} from image-registry.openshift-image-registry.svc:5000/openshift/java-11-app-runner:latest )
+      fi
+      case $(params.build-type) in
+        spring-boot)
+        buildah ${BUILDAH_ARGS} copy ${CONTAINER} ./target/app.jar /deployments/app.jar
+        ;;
+        quarkus-jvm)
+        buildah ${BUILDAH_ARGS} copy ${CONTAINER} ./target/lib/* /deployments/lib/
+        buildah ${BUILDAH_ARGS} copy ${CONTAINER} ./target/app-runner.jar /deployments/app.jar
+        ;;
+        quarkus-fast-jar)
+        buildah ${BUILDAH_ARGS} copy ${CONTAINER} ./target/quarkus-app/lib/ /deployments/lib/
+        buildah ${BUILDAH_ARGS} copy ${CONTAINER} ./target/quarkus-app/quarkus-run.jar /deployments/app.jar
+        buildah ${BUILDAH_ARGS} copy ${CONTAINER} ./target/quarkus-app/app/ /deployments/app/
+        buildah ${BUILDAH_ARGS} copy ${CONTAINER} ./target/quarkus-app/quarkus/ /deployments/quarkus/
+        ;;
+        quarkus-native)
+        buildah ${BUILDAH_ARGS} copy ${CONTAINER} ./target/app-runner /application
+        buildah ${BUILDAH_ARGS} config --entrypoint '["/application", "-Dquarkus.http.host=0.0.0.0", "${JAVA_OPTIONS}"]' --port 8080 ${CONTAINER}
+      esac
+      buildah ${BUILDAH_ARGS} config --label GIT_COMMIT=${SHA} --author="Tekton" ${CONTAINER}
+      buildah ${BUILDAH_ARGS} config --label GIT_URL=$(params.git-repo-url) ${CONTAINER}
+      buildah ${BUILDAH_ARGS} commit ${CONTAINER} ${DESTINATION_IMAGE}:${SHA:0:7}
+      buildah ${BUILDAH_ARGS} unmount ${CONTAINER}
+      buildah ${BUILDAH_ARGS} push ${DESTINATION_IMAGE}:${SHA:0:7} docker://${DESTINATION_IMAGE}:${SHA:0:7}
+      buildah ${BUILDAH_ARGS} push ${DESTINATION_IMAGE}:${SHA:0:7} docker://${DESTINATION_IMAGE}:latest
+    env:
+    - name: user.home
+      value: /tekton/home
     workingDir: "/workspace/source"
   volumes:
   - name: varlibc

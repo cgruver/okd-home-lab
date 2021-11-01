@@ -27,6 +27,8 @@ data:
               kind: PipelineRun
               metadata:
                 name: ${APP_NAME}-$(uid)
+                labels:
+                  app-name: ${APP_NAME}
               spec:
                 serviceAccountName: pipeline
                 pipelineRef: 
