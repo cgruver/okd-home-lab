@@ -18,8 +18,6 @@ objects:
       taskRef:
         name: create-trigger
       params:
-      - name: git-repo-type
-        value: ${GIT_REPO_TYPE}
       - name: git-repo-url
         value: ${GIT_REPOSITORY}
       - name: git-branch
@@ -40,12 +38,6 @@ parameters:
   name: GIT_BRANCH
   required: true
   value: "main"
--
-  description: "Git Repository Type: gitea or gitlab"
-  displayName: "Git Repository Type"
-  name: GIT_REPO_TYPE
-  required: true
-  value: "gitea"
 -
   description: "auto-filled random task name"
   displayName: "Auto-Filled (Leave this field blank)"

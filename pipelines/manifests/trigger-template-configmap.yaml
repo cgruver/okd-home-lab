@@ -3,13 +3,13 @@ kind: ConfigMap
 metadata:
   name: trigger-template
 data:
-  gitlab-trigger-template.yaml: |
+  gitea-trigger-template.yaml: |
     apiVersion: template.openshift.io/v1
     kind: Template
     metadata:
       annotations:
         template.openshift.io/bindable: "false"
-      name: gitlab-tekton-trigger
+      name: gitea-tekton-trigger
     objects:
       - apiVersion: triggers.tekton.dev/v1alpha1
         kind: TriggerTemplate
@@ -78,29 +78,6 @@ data:
         required: true
         value: "/deploy-config"
 
-  gitlab-trigger-binding.yaml: |
-    apiVersion: template.openshift.io/v1
-    kind: Template
-    metadata:
-      annotations:
-        template.openshift.io/bindable: "false"
-      name: gitlab-tekton-trigger-binding
-    objects:
-      - apiVersion: triggers.tekton.dev/v1alpha1
-        kind: TriggerBinding
-        metadata:
-          name: ${APP_NAME}
-        spec:
-          params:
-            - name: git-checkout-sha
-              value: "$(body.checkout_sha)"
-            - name: git-repo-url
-              value: "$(body.repository.git_ssh_url)"
-    parameters:
-      -
-        name: APP_NAME
-        required: true
-
   gitea-trigger-binding.yaml: |
     apiVersion: template.openshift.io/v1
     kind: Template
@@ -118,7 +95,7 @@ data:
             - name: git-checkout-sha
               value: "$(body.after)"
             - name: git-repo-url
-              value: "$(body.repository.ssh_url)"
+              value: "$(body.repository.clone_url)"
     parameters:
       -
         name: APP_NAME

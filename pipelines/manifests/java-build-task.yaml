@@ -74,7 +74,6 @@ spec:
     image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:latest
     imagePullPolicy: IfNotPresent
     script: |
-      export BUILDAH_ISOLATION=chroot
       mkdir -p ${HOME}/.config/containers
       echo "[storage]" > ${HOME}/.config/containers/storage.conf
       echo "driver=\"vfs\"" >> ${HOME}/.config/containers/storage.conf
@@ -117,10 +116,6 @@ spec:
     image: image-registry.openshift-image-registry.svc:5000/openshift/buildah:latest
     imagePullPolicy: IfNotPresent
     script: |
-      echo "tekton:x:$(id -u):0:tekton user:${HOME}:/sbin/nologin" >> /etc/passwd
-      echo $(id -u):1100000000:65536 >> /etc/subuid
-      echo $(id -u):1100000000:65536 >> /etc/subgid
-      export BUILDAH_ISOLATION=chroot
       SHA=$(cat /workspace/git-sha.out)
       APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1)
       DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/${APP_NAME}"

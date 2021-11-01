@@ -4,10 +4,6 @@ metadata:
   name: create-trigger
 spec:
   params:
-  - name: git-repo-type
-    type: string
-    description: "Git Repo Type: |gitea|gitlab|"
-    default: "gitea"
   - name: git-repo-url
     type: string
     description: "Git Repository URL"
@@ -28,46 +24,32 @@ spec:
     configMap:
       name: trigger-template
   steps:
-  - name: create-trigger
+  - name: create-trigger-objects
     image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
     imagePullPolicy: IfNotPresent
     workingDir: /workspace
     script: |
+      set +x
+      echo -----------------------------------
       echo "Creating Application Resources"
-      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1 | tr "[:lower:]" "[:upper:]")
-      oc process --local -f /workspace/templates/gitlab-trigger-template.yaml -p APP_NAME=${APP_NAME} -p GIT_REPOSITORY=$(params.git-repo-url) -p GIT_BRANCH=$(params.git-branch) -p BUILD_TYPE=$(params.build-type) -p DEPLOY_TYPE=$(params.deploy-type) | oc apply -f -
-      case $(params.git-repo-type) in
-        gitea)
-          oc process --local -f /workspace/templates/gitea-trigger-binding.yaml -p APP_NAME=${APP_NAME} | oc apply -f -
-        ;;
-        gitlab)
-          oc process --local -f /workspace/templates/gitlab-trigger-binding.yaml -p APP_NAME=${APP_NAME} | oc apply -f -
-        ;;
-        echo "APP_NAME=${APP_NAME}" >> /workspace/env-vars
+      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1 | tr "[:upper:]" "[:lower:]")
+      oc process --local -f /workspace/templates/gitea-trigger-template.yaml -p APP_NAME=${APP_NAME} -p GIT_REPOSITORY=$(params.git-repo-url) -p GIT_BRANCH=$(params.git-branch) -p BUILD_TYPE=$(params.build-type) -p DEPLOY_TYPE=$(params.deploy-type) | oc apply -f -
+      oc process --local -f /workspace/templates/gitea-trigger-binding.yaml -p APP_NAME=${APP_NAME} | oc apply -f -
+      echo -----------------------------------
+      echo "Creating Route for Event Listener"
+      SVC_NAME=$(oc get el ${APP_NAME}-listener -o=jsonpath='{.status.configuration.generatedName}')
+      oc expose service ${SVC_NAME}
+      HOOK_URL="http://$(oc get route ${SVC_NAME} -o=jsonpath='{.spec.host}')"
+      SECRET=$(echo $RANDOM | md5sum | cut -d" " -f1)
+      oc create secret generic ${APP_NAME}-githook-secret --from-literal=GIT_HOOK_SECRET=${SECRET}
+      oc patch sa pipeline --type json --patch "[{\"op\": \"add\", \"path\": \"/secrets/-\", \"value\": {\"name\":\"${APP_NAME}-githook-secret\"}}]" -n app-demo
+      echo "export APP_NAME=${APP_NAME}" >> /workspace/env-vars
+      echo "export HOOK_URL=${HOOK_URL}" >> /workspace/env-vars
+      echo "export SECRET=${SECRET}" >> /workspace/env-vars
+      echo -----------------------------------
     volumeMounts:
     - name: trigger-template
       mountPath: /workspace/templates
-  - name: create-route
-    image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
-    imagePullPolicy: IfNotPresent
-    env:
-    - name: user.home
-      value: /tekton/home
-    workingDir: "/workspace"
-    script: |
-      echo -----------------------------------
-      echo "Creating Route for Event Listener"
-      . /workspace/env-vars
-      SVC_NAME=$(oc get el ${APP_NAME}-listener -o=jsonpath='{.status.configuration.generatedName}')
-      oc expose service ${SVC_NAME}
-      HOOK_URL=$(oc get route ${SVC_NAME} -o=jsonpath='{.spec.host}')
-      SECRET=$(uid)
-      echo "GIT_HOOK_SECRET=${SECRET}"
-      oc create secret generic ${APP_NAME}-githook-secret
-      echo "HOOK_URL=${HOOK_URL}" >> /workspace/env-vars
-      echo "SECRET=${SECRET}" >> /workspace/env-vars
-      echo -----------------------------------
-
   - name: create-webhook
     image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
@@ -80,21 +62,11 @@ spec:
       echo "Creating Webhook"
       . /workspace/env-vars
 
-      PROJECT_PATH=$(echo $(params.git-repo-url) | cut -d"/" -f4- | cut -d"." -f1 | sed "s|/|%2F|g")
+      PROJECT_PATH=$(echo $(params.git-repo-url) | cut -d"/" -f4- | cut -d"." -f1)
       GIT_URL=$(echo $(params.git-repo-url) | cut -d"/" -f-3) 
-      
-      case $(params.git-repo-type) in
-        gitea)
-          GIT_CREDS="$(cat /tekton/creds-secrets/gitea-secret/username):$(cat /tekton/creds-secrets/gitea-secret/password)"
-          API_PATH="/api/v1/repos/${PROJECT_PATH}/hooks"
-          API_URL="${GIT_URL}${API_PATH}"
-          curl --location --request POST ${API_URL} -u ${GIT_CREDS} --header 'Content-Type: application/json' --header 'Content-Type: application/json' --data-raw {"active":true,"branch_filter":"$(params.git-branch)","config":{"content_type":"json","url":"${HOOK_URL}","http_method": "post","secret":"${SECRET}"},"events": ["push"],"type": "gitea"}
-        ;;
-        gitlab)
-          API_PATH="/api/v4/projects/${PROJECT_PATH}/hooks"
-          API_URL="${GIT_URL}${API_PATH}"
-          API_KEY=""
-          # curl -X POST -u ${GIT_CREDS} -d "push_events=true" -d "push_events_branch_filter=$(params.git-branch)" -d "token=${API_KEY}" -d "url=${HOOK_URL}" -d "enable_ssl_verification=false" ${API_URL}
-        ;;
-      esac
+      GIT_CREDS="$(cat /tekton/creds-secrets/gitea-secret/username):$(cat /tekton/creds-secrets/gitea-secret/password)"
+      API_PATH="/api/v1/repos/${PROJECT_PATH}/hooks"
+      API_URL="${GIT_URL}${API_PATH}"
+      curl --location --request POST ${API_URL} -u ${GIT_CREDS} --header 'Content-Type: application/json' --header 'Content-Type: application/json' --data-raw "{\"active\":true,\"branch_filter\":\"$(params.git-branch)\",\"config\":{\"content_type\":\"json\",\"url\":\"${HOOK_URL}\",\"http_method\": \"post\",\"secret\":\"${SECRET}\"},\"events\": [\"push\"],\"type\": \"gitea\"}"
       echo -----------------------------------
+

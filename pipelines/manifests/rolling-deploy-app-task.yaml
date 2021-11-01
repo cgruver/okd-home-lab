@@ -63,14 +63,17 @@ spec:
         oc process --local -f /workspace/templates/app-service.yaml -p APP_NAME=${APP_NAME} | oc apply -n $(context.taskRun.namespace) -f -
         oc process --local -f /workspace/templates/app-deployment-template.yaml -p APP_NAME=${APP_NAME} -p DEPLOY_NAME=${DEPLOY_NAME} | oc apply -n $(context.taskRun.namespace) -f -
         echo -----------------------------------
-        echo "Applying artifacts in $(params.config-git-path)/apply directory"
-        for i in $(ls ./$(params.config-git-path)/apply)
-        do
-          sed -i "s|--DEPLOY_NAME--|${DEPLOY_NAME}|g" ./$(params.config-git-path)/apply/${i}
-          sed -i "s|--APP_NAME--|${APP_NAME}|g" ./$(params.config-git-path)/apply/${i}
-        done
-        oc apply -f ./$(params.config-git-path)/apply
-        echo -----------------------------------
+        if [ -d ./$(params.config-git-path)/apply ]
+        then
+          echo "Applying artifacts in $(params.config-git-path)/apply directory"
+          for i in $(ls ./$(params.config-git-path)/apply)
+          do
+            sed -i "s|--DEPLOY_NAME--|${DEPLOY_NAME}|g" ./$(params.config-git-path)/apply/${i}
+            sed -i "s|--APP_NAME--|${APP_NAME}|g" ./$(params.config-git-path)/apply/${i}
+          done
+          oc apply -f ./$(params.config-git-path)/apply
+          echo -----------------------------------
+        fi
         echo "Setting deployment image path"
         echo -----------------------------------
         DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/${APP_NAME}:${SHA:0:7}"
