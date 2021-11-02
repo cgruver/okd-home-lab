@@ -51,7 +51,7 @@ data:
             new-deploy: ""
           name: ${DEPLOY_NAME}
         spec:
-          replicas: 0
+          replicas: 1
           selector:
             matchLabels:
               version: "${DEPLOY_NAME}"
