@@ -1,7 +1,7 @@
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
-  name: tekton-global-pipelinerun-pruner
+  name: tekton-pipelinerun-pruner
 spec:
   schedule: "0 0 * * *"
   successfulJobsHistoryLimit: 3
@@ -19,48 +19,6 @@ spec:
               env:
                 - name: RETAIN_TIME
                   value: "86400"
-                - name: SELECT_LABEL
-                  value: "app-name"
-                - name: RETAIN_LAST
-                  value: "2"
-              command:
-                - /bin/bash
-              args:
-                - -c
-                - "CURRENT_TIME=$(date +%s); for PIPELINE_RUN in $(oc get pipelinerun -o jsonpath='{.items[*].metadata.name}'); do CREATE_TIME=$(date -d$(oc get pipelinerun ${PIPELINE_RUN} -o jsonpath='{.metadata.creationTimestamp}') +%s); TIME_DELTA=$(( ${CURRENT_TIME} - ${CREATE_TIME} )); if [[ ${TIME_DELTA} -gt  ${RETAIN_TIME} ]]; then echo \"Removing PipelineRun: ${PIPELINE_RUN}\"; oc delete pipelinerun ${PIPELINE_RUN}; fi; done"
-              resources:
-                requests:
-                  cpu: 100m
-                  memory: 64Mi
-                limits:
-                  cpu: 100m
-                  memory: 64Mi
-
----
-
-apiVersion: batch/v1beta1
-kind: CronJob
-metadata:
-  name: tekton-app-pipelinerun-pruner
-spec:
-  schedule: "0 0 * * *"
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 3
-  concurrencyPolicy: Forbid
-  jobTemplate:
-    spec:
-      template:
-        spec:
-          restartPolicy: OnFailure
-          serviceAccount: pipeline
-          containers:
-            - name: openshift-cli
-              image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
-              env:
-                - name: SELECT_LABEL
-                  value: "app-name"
-                - name: RETAIN_LAST
-                  value: "2"
               command:
                 - /bin/bash
               args:
