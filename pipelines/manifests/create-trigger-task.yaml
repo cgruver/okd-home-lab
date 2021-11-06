@@ -38,8 +38,8 @@ spec:
       echo -----------------------------------
       echo "Creating Route for Event Listener"
       SVC_NAME=$(oc get el ${APP_NAME}-listener -o=jsonpath='{.status.configuration.generatedName}')
-      oc expose service ${SVC_NAME}
-      HOOK_URL="http://$(oc get route ${SVC_NAME} -o=jsonpath='{.spec.host}')"
+      oc create route edge ${SVC_NAME} --service=${SVC_NAME}
+      HOOK_URL="https://$(oc get route ${SVC_NAME} -o=jsonpath='{.spec.host}')"
       SECRET=$(echo $RANDOM | md5sum | cut -d" " -f1)
       oc create secret generic ${APP_NAME}-githook-secret --from-literal=GIT_HOOK_SECRET=${SECRET}
       oc patch sa pipeline --type json --patch "[{\"op\": \"add\", \"path\": \"/secrets/-\", \"value\": {\"name\":\"${APP_NAME}-githook-secret\"}}]" -n app-demo
@@ -69,4 +69,3 @@ spec:
       API_URL="${GIT_URL}${API_PATH}"
       curl --location --request POST ${API_URL} -u ${GIT_CREDS} --header 'Content-Type: application/json' --header 'Content-Type: application/json' --data-raw "{\"active\":true,\"branch_filter\":\"$(params.git-branch)\",\"config\":{\"content_type\":\"json\",\"url\":\"${HOOK_URL}\",\"http_method\": \"post\",\"secret\":\"${SECRET}\"},\"events\": [\"push\"],\"type\": \"gitea\"}"
       echo -----------------------------------
-
