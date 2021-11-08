@@ -10,6 +10,9 @@ spec:
     - name: maven-settings
       mountPath: /tmp/maven-settings
   params:
+  - name: app-name
+    type: string
+    description: The application name
   - name: build-type
     type: string
     description: "Selected build type: quarkus-jvm, quarkus-fast-jar, quarkus-native, spring-boot"
@@ -87,11 +90,10 @@ spec:
       runAsUser: 1000
     imagePullPolicy: IfNotPresent
     script: |
-      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1)
       SHA=$(cat /workspace/git-sha.out)
       BUILDAH_ARGS="--storage-driver vfs"
       export BUILDAH_ISOLATION=chroot
-      DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/${APP_NAME}"
+      DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/$(params.app-name)"
       if [[ $(params.build-type) == "quarkus-native" ]]
       then
         CONTAINER=$(buildah ${BUILDAH_ARGS} from image-registry.openshift-image-registry.svc:5000/openshift/ubi-minimal:latest)

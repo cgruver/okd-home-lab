@@ -4,6 +4,9 @@ metadata:
   name: deploy-rolling-replace
 spec:
   params:
+  - name: app-name
+    type: string
+    description: The application name
   - name: git-repo-url
     type: string
     description: "Git Repository URL"
@@ -60,8 +63,8 @@ spec:
       function deploy() {
         echo -----------------------------------
         echo "Creating Deployment"
-        oc process --local -f /workspace/templates/app-service.yaml -p APP_NAME=${APP_NAME} | oc apply -n $(context.taskRun.namespace) -f -
-        oc process --local -f /workspace/templates/app-deployment-template.yaml -p APP_NAME=${APP_NAME} -p DEPLOY_NAME=${DEPLOY_NAME} | oc apply -n $(context.taskRun.namespace) -f -
+        oc process --local -f /workspace/templates/app-service.yaml -p APP_NAME=$(params.app-name) | oc apply -n $(context.taskRun.namespace) -f -
+        oc process --local -f /workspace/templates/app-deployment-template.yaml -p APP_NAME=$(params.app-name) -p DEPLOY_NAME=${DEPLOY_NAME} | oc apply -n $(context.taskRun.namespace) -f -
         echo -----------------------------------
         if [ -d ./$(params.config-git-path)/apply ]
         then
@@ -69,14 +72,14 @@ spec:
           for i in $(ls ./$(params.config-git-path)/apply)
           do
             sed -i "s|--DEPLOY_NAME--|${DEPLOY_NAME}|g" ./$(params.config-git-path)/apply/${i}
-            sed -i "s|--APP_NAME--|${APP_NAME}|g" ./$(params.config-git-path)/apply/${i}
+            sed -i "s|--APP_NAME--|$(params.app-name)|g" ./$(params.config-git-path)/apply/${i}
           done
           oc apply -f ./$(params.config-git-path)/apply
           echo -----------------------------------
         fi
         echo "Setting deployment image path"
         echo -----------------------------------
-        DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/${APP_NAME}:${SHA:0:7}"
+        DESTINATION_IMAGE="image-registry.openshift-image-registry.svc:5000/$(context.taskRun.namespace)/$(params.app-name):${SHA:0:7}"
         oc set image deployment/${DEPLOY_NAME} ${DEPLOY_NAME}=${DESTINATION_IMAGE}
         if [ -f ./$(params.config-git-path)/patch/deployment-patch.yaml ]
         then
@@ -84,7 +87,7 @@ spec:
           echo "Patching deployment"
           echo -----------------------------------
           sed -i "s|--DEPLOY_NAME--|${DEPLOY_NAME}|g" ./$(params.config-git-path)/patch/deployment-patch.yaml
-          sed -i "s|--APP_NAME--|${APP_NAME}|g" ./$(params.config-git-path)/patch/deployment-patch.yaml
+          sed -i "s|--APP_NAME--|$(params.app-name)|g" ./$(params.config-git-path)/patch/deployment-patch.yaml
           oc patch deployment ${DEPLOY_NAME} --patch "$(cat ./$(params.config-git-path)/patch/deployment-patch.yaml)"
         fi
         echo -----------------------------------
@@ -97,8 +100,8 @@ spec:
         let i=1
         while [[ ${DONE} == "FALSE" ]]
         do
-          DESIRED_REPLICAS=$(oc get deployment --selector app=${APP_NAME},version=${DEPLOY_NAME} -o jsonpath='{ .items[0].status.replicas}')
-          READY_REPLICAS=$(oc get deployment --selector app=${APP_NAME},version=${DEPLOY_NAME} -o jsonpath='{ .items[0].status.readyReplicas}')
+          DESIRED_REPLICAS=$(oc get deployment --selector app=$(params.app-name),version=${DEPLOY_NAME} -o jsonpath='{ .items[0].status.replicas}')
+          READY_REPLICAS=$(oc get deployment --selector app=$(params.app-name),version=${DEPLOY_NAME} -o jsonpath='{ .items[0].status.readyReplicas}')
           if [[ ${DESIRED_REPLICAS} == "" ]]
           then
             echo "Waiting for deployment to complete..."
@@ -120,9 +123,8 @@ spec:
       echo -----------------------------------
       echo "Beginning Application Rollout"
 
-      APP_NAME=$(basename $(params.git-repo-url) | cut -d'.' -f1)
       SHA=$(cat /workspace/git-sha.out)
-      DEPLOY_NAME="${APP_NAME}-${SHA:0:7}"
+      DEPLOY_NAME="$(params.app-name)-${SHA:0:7}"
       RUNNING="FALSE"
       
       deploy
@@ -130,24 +132,24 @@ spec:
       if [[ ${RUNNING} == "FALSE" ]]
       then
         echo "Application failed to start! Rolling Back"
-        oc process --local -f /workspace/templates/app-deployment-template.yaml -p APP_NAME=${APP_NAME} -p DEPLOY_NAME=${DEPLOY_NAME} | oc delete -n $(context.taskRun.namespace) -f -
+        oc process --local -f /workspace/templates/app-deployment-template.yaml -p APP_NAME=$(params.app-name) -p DEPLOY_NAME=${DEPLOY_NAME} | oc delete -n $(context.taskRun.namespace) -f -
         exit 1
       fi
       echo "Remove Old Deployment artifacts"
-      oc delete deployment --selector app=${APP_NAME},previous="" -n $(context.taskRun.namespace) 
-      oc delete configmap --selector app=${APP_NAME},previous="" -n $(context.taskRun.namespace)
-      oc delete secret --selector app=${APP_NAME},previous="" -n $(context.taskRun.namespace) 
+      oc delete deployment --selector app=$(params.app-name),previous="" -n $(context.taskRun.namespace) 
+      oc delete configmap --selector app=$(params.app-name),previous="" -n $(context.taskRun.namespace)
+      oc delete secret --selector app=$(params.app-name),previous="" -n $(context.taskRun.namespace) 
       echo -----------------------------------
       echo "Label Previous Deployment artifacts"
-      oc label deployment --selector app=${APP_NAME},latest="" -n $(context.taskRun.namespace) previous="" latest-
-      oc label configmap --selector app=${APP_NAME},latest="" -n $(context.taskRun.namespace) previous="" latest-
-      oc label secret --selector app=${APP_NAME},latest="" -n $(context.taskRun.namespace) previous="" latest-
+      oc label deployment --selector app=$(params.app-name),latest="" -n $(context.taskRun.namespace) previous="" latest-
+      oc label configmap --selector app=$(params.app-name),latest="" -n $(context.taskRun.namespace) previous="" latest-
+      oc label secret --selector app=$(params.app-name),latest="" -n $(context.taskRun.namespace) previous="" latest-
       echo -----------------------------------
       echo "Label New Deployment"
-      oc label deployment --selector app=${APP_NAME},version=${DEPLOY_NAME},new-deploy="" -n $(context.taskRun.namespace) latest="" new-deploy- previous-
-      oc label configmap --selector app=${APP_NAME},version=${DEPLOY_NAME} -n $(context.taskRun.namespace) latest="" previous-
-      oc label secret --selector app=${APP_NAME},version=${DEPLOY_NAME} -n $(context.taskRun.namespace) latest="" previous-
+      oc label deployment --selector app=$(params.app-name),version=${DEPLOY_NAME},new-deploy="" -n $(context.taskRun.namespace) latest="" new-deploy- previous-
+      oc label configmap --selector app=$(params.app-name),version=${DEPLOY_NAME} -n $(context.taskRun.namespace) latest="" previous-
+      oc label secret --selector app=$(params.app-name),version=${DEPLOY_NAME} -n $(context.taskRun.namespace) latest="" previous-
       echo -----------------------------------
       echo "Scale Down Previous Deployment"
-      oc scale deployment --selector app=${APP_NAME},previous="" -n $(context.taskRun.namespace) --replicas=0
+      oc scale deployment --selector app=$(params.app-name),previous="" -n $(context.taskRun.namespace) --replicas=0
       echo -----------------------------------

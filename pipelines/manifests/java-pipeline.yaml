@@ -4,9 +4,21 @@ metadata:
   name: build-and-deploy-java
 spec:
   params:
+  - name: app-name
+    type: string
+    description: The application name
+  - name: git-signature
+    type: string
+    description: The SHA256 signature of the payload
+  - name: git-event
+    type: string
+    description: The git event that caused the webhook to fire
   - name: build-type
     type: string
     description: "Selected build type: quarkus-jvm, quarkus-fast-jar, quarkus-native, spring-boot"
+  - name: trigger-payload
+    type: string
+    description: The trigger payload
   - name: deploy-type
     type: string
     description: "Selected deploy type: rolling-replace, blue-green, simple"
@@ -26,10 +38,26 @@ spec:
     description: "Config Git Path"
     default: "/deploy-config"
   tasks:
+  - name: validate
+    taskRef:
+      name: validate-trigger
+    params:
+    - name: app-name
+      value: $(params.app-name)
+    - name: git-signature
+      value: $(params.git-signature)
+    - name: git-event
+      value: $(params.git-event)
+    - name: trigger-payload
+      value: $(params.trigger-payload)
   - name: build
     taskRef:
       name: build-java
+    runAfter:
+    - validate
     params:
+    - name: app-name
+      value: $(params.app-name)
     - name: build-type
       value: $(params.build-type)
     - name: git-repo-url
@@ -48,6 +76,8 @@ spec:
       operator: in
       values: ["rolling-replace"]
     params:
+    - name: app-name
+      value: $(params.app-name)
     - name: git-repo-url
       value: $(params.git-repo-url)
     - name: git-checkout
