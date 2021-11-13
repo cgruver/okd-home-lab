@@ -30,6 +30,7 @@ spec:
     image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
     script: |
+      #!/bin/bash
       case $(params.clone-type) in
         sha)
           mkdir -p /workspace/source
@@ -58,7 +59,6 @@ spec:
       mountPath: /workspace/templates
     script: |
       #!/bin/bash
-      set -x 
 
       function deploy() {
         echo -----------------------------------

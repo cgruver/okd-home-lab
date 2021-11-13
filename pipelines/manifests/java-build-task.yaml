@@ -31,6 +31,7 @@ spec:
     image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
     script: |
+      #!/bin/bash
       mkdir -p /workspace/source
       chmod 777 /workspace/source
       case $(params.clone-type) in
@@ -56,6 +57,7 @@ spec:
     image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
     script: |
+      #!/bin/bash
       MVN_ARGS="-DskipTests -Dmaven.wagon.http.ssl.insecure=true -s./settings.xml -DappName=app"
       case $(params.build-type) in
         spring-boot)
@@ -90,6 +92,7 @@ spec:
       runAsUser: 1000
     imagePullPolicy: IfNotPresent
     script: |
+      #!/bin/bash
       SHA=$(cat /workspace/git-sha.out)
       BUILDAH_ARGS="--storage-driver vfs"
       export BUILDAH_ISOLATION=chroot
