@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set -x
 INIT_CLUSTER=false
 ADD_WORKER=false
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
@@ -166,9 +165,9 @@ EOF
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
 #!ipxe
 
-kernel http://${BASTION_HOST}/install/fcos/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst=yes coreos.inst.install_dev=sda coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign coreos.inst.platform_id=qemu console=ttyS0
-initrd http://${BASTION_HOST}/install/fcos/initrd
-initrd http://${BASTION_HOST}/install/fcos/rootfs.img
+kernel http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst=yes coreos.inst.install_dev=sda coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign coreos.inst.platform_id=qemu console=ttyS0
+initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/initrd
+initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.img
 
 boot
 EOF
@@ -247,6 +246,7 @@ NET_PREFIX_ARPA=${i3}.${i2}.${i1}
 rm -rf ${OKD_LAB_PATH}/ipxe-work-dir
 rm -rf ${OKD_LAB_PATH}/dns-work-dir
 mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir/ignition
+mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}
 mkdir -p ${OKD_LAB_PATH}/dns-work-dir
 
 if [[ ${INIT_CLUSTER} == "true" ]]
@@ -289,6 +289,15 @@ then
   done
   # Create DNS Records:
   createControlPlaneDNS
+
+  # Fetch FCOS install images:
+  FCOS_STREAM="stable"
+  FCOS_VER=$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.qemu.release')
+  curl -o ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz https://builds.coreos.fedoraproject.org/prod/streams/${FCOS_STREAM}/builds/${FCOS_VER}/x86_64/fedora-coreos-${FCOS_VER}-live-kernel-x86_64
+  curl -o ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/initrd https://builds.coreos.fedoraproject.org/prod/streams/${FCOS_STREAM}/builds/${FCOS_VER}/x86_64/fedora-coreos-${FCOS_VER}-live-initramfs.x86_64.img
+  curl -o ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.img https://builds.coreos.fedoraproject.org/prod/streams/${FCOS_STREAM}/builds/${FCOS_VER}/x86_64/fedora-coreos-${FCOS_VER}-live-rootfs.x86_64.img
+
+  ${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN} root@${BASTION_HOST}:/usr/local/www/install/fcos/
 fi
 
 if [[ ${ADD_WORKER} == "true" ]]

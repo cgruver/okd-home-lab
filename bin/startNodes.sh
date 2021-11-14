@@ -4,8 +4,6 @@ BOOTSTRAP=false
 MASTER=false
 WORKER=false
 
-set -x
-
 for i in "$@"
 do
   case $i in
