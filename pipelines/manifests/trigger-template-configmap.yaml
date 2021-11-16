@@ -70,7 +70,7 @@ data:
             - bindings:
               - ref: ${APP_NAME}
               template:
-                name: ${APP_NAME}
+                ref: ${APP_NAME}
     parameters:
       -
         name: APP_NAME
