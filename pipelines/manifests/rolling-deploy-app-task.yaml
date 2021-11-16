@@ -3,6 +3,13 @@ kind: Task
 metadata:
   name: deploy-rolling-replace
 spec:
+  stepTemplate:
+    volumeMounts:
+    - name: app-deployment-template
+      mountPath: /workspace/templates
+    - name: trusted-ca
+      mountPath: /etc/pki/ca-trust/extracted/pem
+      readOnly: true
   params:
   - name: app-name
     type: string
@@ -25,6 +32,12 @@ spec:
   - name: app-deployment-template
     configMap:
       name: app-deployment-template
+  - name: trusted-ca
+    configMap:
+      name: trusted-ca
+      items:
+        - key: ca-bundle.crt 
+          path: tls-ca-bundle.pem
   steps:
   - name: prep-config
     image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
@@ -54,9 +67,6 @@ spec:
     image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
     imagePullPolicy: IfNotPresent
     workingDir: /workspace/source
-    volumeMounts:
-    - name: app-deployment-template
-      mountPath: /workspace/templates
     script: |
       #!/bin/bash
 

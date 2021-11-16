@@ -9,6 +9,9 @@ spec:
       mountPath: /var/lib/containers
     - name: maven-settings
       mountPath: /tmp/maven-settings
+    - name: trusted-ca
+      mountPath: /etc/pki/ca-trust/extracted/pem
+      readOnly: true
   params:
   - name: app-name
     type: string
@@ -26,6 +29,18 @@ spec:
     type: string
     description: "The type of git clone: sha, branch"
     default: "branch"
+  volumes:
+  - name: varlibc
+    emptyDir: {}
+  - name: maven-settings
+    configMap:
+      name: maven-settings-xml
+  - name: trusted-ca
+    configMap:
+      name: trusted-ca
+      items:
+        - key: ca-bundle.crt 
+          path: tls-ca-bundle.pem
   steps:
   - name: prep-build
     image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
@@ -131,9 +146,3 @@ spec:
     - name: user.home
       value: /tekton/home
     workingDir: "/workspace/source"
-  volumes:
-  - name: varlibc
-    emptyDir: {}
-  - name: maven-settings
-    configMap:
-      name: maven-settings-xml

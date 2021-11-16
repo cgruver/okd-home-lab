@@ -3,6 +3,13 @@ kind: Task
 metadata:
   name: create-trigger
 spec:
+  stepTemplate:
+    volumeMounts:
+    - name: trigger-template
+      mountPath: /workspace/templates
+    - name: trusted-ca
+      mountPath: /etc/pki/ca-trust/extracted/pem
+      readOnly: true
   params:
   - name: git-repo-url
     type: string
@@ -23,6 +30,12 @@ spec:
   - name: trigger-template
     configMap:
       name: trigger-template
+  - name: trusted-ca
+    configMap:
+      name: trusted-ca
+      items:
+        - key: ca-bundle.crt 
+          path: tls-ca-bundle.pem
   steps:
   - name: create-trigger-objects
     image: image-registry.openshift-image-registry.svc:5000/openshift/origin-cli:latest
@@ -47,9 +60,6 @@ spec:
       echo "export HOOK_URL=${HOOK_URL}" >> /workspace/env-vars
       echo "export SECRET=${SECRET}" >> /workspace/env-vars
       echo -----------------------------------
-    volumeMounts:
-    - name: trigger-template
-      mountPath: /workspace/templates
   - name: create-webhook
     image: image-registry.openshift-image-registry.svc:5000/openshift/java-11-builder:latest
     imagePullPolicy: IfNotPresent
