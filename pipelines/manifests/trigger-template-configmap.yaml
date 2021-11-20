@@ -67,7 +67,20 @@ data:
         spec:
           serviceAccountName: pipeline
           triggers:
-            - bindings:
+            - name: ${APP_NAME}-trigger
+              interceptors:
+                - ref:
+                    apiVersion: triggers.tekton.dev
+                    kind: ClusterInterceptor
+                    name: "gitea"
+                  params:
+                  - name: "secretRef"
+                    value:
+                      secretName: ${APP_NAME}-githook-secret
+                      secretKey: secretToken
+                  - name: "validEvents"
+                    value: ["push"]
+              bindings:
               - ref: ${APP_NAME}
               template:
                 ref: ${APP_NAME}
