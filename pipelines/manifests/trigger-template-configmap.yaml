@@ -11,10 +11,12 @@ data:
         template.openshift.io/bindable: "false"
       name: gitea-tekton-trigger
     objects:
-      - apiVersion: triggers.tekton.dev/v1alpha1
+      - apiVersion: triggers.tekton.dev/v1beta1
         kind: TriggerTemplate
         metadata:
           name: ${APP_NAME}
+          annotations:
+            triggers.tekton.dev/old-escape-quotes: 'true'
         spec:
           params:
             - name: git-checkout-sha
@@ -50,17 +52,11 @@ data:
                   value: $(tt.params.git-repo-url)
                 - name: git-checkout
                   value: $(tt.params.git-checkout-sha)
-                - name: git-signature
-                  value: $(tt.params.git-signature)
-                - name: git-event
-                  value: $(tt.params.git-event)
-                - name: trigger-payload
-                  value: $(tt.params.trigger-payload)
                 - name: clone-type
                   value: "sha"
                 - name: config-git-path
                   value: "${CONFIG_PATH}"
-      - apiVersion: triggers.tekton.dev/v1alpha1
+      - apiVersion: triggers.tekton.dev/v1beta1
         kind: EventListener
         metadata:
           name: ${APP_NAME}-listener
@@ -77,7 +73,7 @@ data:
                   - name: "secretRef"
                     value:
                       secretName: ${APP_NAME}-githook-secret
-                      secretKey: secretToken
+                      secretKey: GIT_HOOK_SECRET
                   - name: "validEvents"
                     value: ["push"]
               bindings:
@@ -115,7 +111,7 @@ data:
         template.openshift.io/bindable: "false"
       name: gitea-tekton-trigger-binding
     objects:
-      - apiVersion: triggers.tekton.dev/v1alpha1
+      - apiVersion: triggers.tekton.dev/v1beta1
         kind: TriggerBinding
         metadata:
           name: ${APP_NAME}
@@ -125,12 +121,6 @@ data:
               value: "$(body.after)"
             - name: git-repo-url
               value: "$(body.repository.clone_url)"
-            - name: git-signature
-              value: "$(header.X-Gitea-Signature)"
-            - name: git-event
-              value: "$(header.X-Gitea-Event)"
-            - name: trigger-payload
-              value: "$(body)"
     parameters:
       -
         name: APP_NAME
