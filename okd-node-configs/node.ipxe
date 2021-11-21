@@ -1,0 +1,7 @@
+#!ipxe
+
+kernel http://${BASTION_HOST}/install/fcos/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst=yes coreos.inst.install_dev=sda coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign coreos.inst.platform_id=qemu console=ttyS0
+initrd http://${BASTION_HOST}/install/fcos/initrd
+initrd http://${BASTION_HOST}/install/fcos/rootfs.img
+
+boot

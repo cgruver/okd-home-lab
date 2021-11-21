@@ -1,0 +1,20 @@
+variant: fcos
+version: 1.2.0
+ignition:
+  config:
+    merge:
+      - local: worker.ign
+storage:
+  disks:
+    - device: /dev/sda
+      partitions:
+        - number: 4
+          label: root
+          size_mib: 51200
+          resize: true
+        - label: ceph
+  filesystems:
+    - device: /dev/mapper/root
+      format: xfs
+      wipe_filesystem: true
+      label: root

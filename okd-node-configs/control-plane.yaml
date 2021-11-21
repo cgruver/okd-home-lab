@@ -1,0 +1,19 @@
+variant: fcos
+version: 1.2.0
+ignition:
+  config:
+    merge:
+      - local: master.ign
+storage:
+  disks:
+    - device: /dev/sda
+      partitions:
+        - number: 4
+          label: root
+          size_mib: 0
+          resize: true
+  filesystems:
+    - device: /dev/mapper/root
+      format: xfs
+      wipe_filesystem: true
+      label: root
