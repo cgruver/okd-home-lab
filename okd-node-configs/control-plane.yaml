@@ -8,8 +8,8 @@ storage:
   disks:
     - device: /dev/sda
       partitions:
-        - number: 4
-          label: root
+        - label: root
+          number: 4
           size_mib: 0
           resize: true
   filesystems:

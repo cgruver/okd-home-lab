@@ -8,11 +8,12 @@ storage:
   disks:
     - device: /dev/sda
       partitions:
-        - number: 4
-          label: root
+        - label: root
+          number: 4
           size_mib: 51200
           resize: true
         - label: ceph
+          size_mib: 0
   filesystems:
     - device: /dev/mapper/root
       format: xfs
