@@ -3,6 +3,7 @@ SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 BOOTSTRAP=false
 MASTER=false
 WORKER=false
+CONFIG_FILE=${LAB_CONFIG_FILE}
 
 for i in "$@"
 do

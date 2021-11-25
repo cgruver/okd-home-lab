@@ -1,5 +1,7 @@
 #!/bin/bash
 
+CONFIG_FILE=${LAB_CONFIG_FILE}
+
 for i in "$@"
 do
 case $i in

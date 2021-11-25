@@ -2,6 +2,7 @@
 
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+CONFIG_FILE=${LAB_CONFIG_FILE}
 
 CREATE_DNS="false"
 HOST_NAME=""
