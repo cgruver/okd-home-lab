@@ -5,6 +5,7 @@ INIT_CLUSTER=false
 ADD_WORKER=false
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+CONFIG_FILE=${LAB_CONFIG_FILE}
 
 # This script will set up the infrastructure to deploy an OKD 4.X cluster
 # Follow the documentation at https://upstreamwithoutapaddle.com/home-lab/lab-intro/
