@@ -143,4 +143,4 @@ then
   ${SSH} root@${ROUTER} "cp /etc/haproxy.bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy restart" 
 fi
 
-${SSH} root@${ROUTER} "/etc/init.d/named restart"
+${SSH} root@${ROUTER} "/etc/init.d/named stop && /etc/init.d/named start"

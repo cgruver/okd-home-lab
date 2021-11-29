@@ -1,8 +1,8 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal:8.4
-ARG MAVEN_VERSION=3.8.3
+ARG MAVEN_VERSION=3.8.4
 ARG BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries
 ARG JAVA_PACKAGE=java-11-openjdk-headless
-ARG MANDREL_VERSION=21.2.0.1-Final
+ARG MANDREL_VERSION=21.3.0.0-Final
 ARG USER_HOME_DIR="/maven"
 ARG WORK_DIR="/workspace"
 ARG GRAALVM_DIR=/opt/mandral

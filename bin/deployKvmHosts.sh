@@ -273,7 +273,7 @@ if [[ ${CREATE_DNS} == "true" ]]
 then
   cat ${OKD_LAB_PATH}/boot-work-dir/forward.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${DOMAIN}"
   cat ${OKD_LAB_PATH}/boot-work-dir/reverse.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}"
-  ${SSH} root@${ROUTER} "/etc/init.d/named restart"
+  ${SSH} root@${ROUTER} "/etc/init.d/named stop && /etc/init.d/named start"
 fi
 
 rm -rf ${OKD_LAB_PATH}/boot-work-dir
