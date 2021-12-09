@@ -47,7 +47,6 @@ DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
 LOCAL_REGISTRY=$(yq e ".local-registry" ${CLUSTER_CONFIG})
 OKD_REGISTRY=$(yq e ".remote-registry" ${CLUSTER_CONFIG})
 PULL_SECRET=$(yq e ".secret-file" ${CLUSTER_CONFIG})
-
-OKD_RELEASE=$(oc version --client=true | cut -d" " -f3)
+OKD_RELEASE=$(yq e ".okd-version" ${CLUSTER_CONFIG})
 
 oc adm -a ${PULL_SECRET} release mirror --from=${OKD_REGISTRY}:${OKD_RELEASE} --to=${LOCAL_REGISTRY}/${OKD_RELEASE} --to-release-image=${LOCAL_REGISTRY}/${OKD_RELEASE}:${OKD_RELEASE}

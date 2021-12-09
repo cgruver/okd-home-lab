@@ -124,42 +124,21 @@ then
   ${SSH} root@${ROUTER} "cp /etc/haproxy.no-bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop && /etc/init.d/haproxy start"
 fi
 
-if [[ ${DELETE_CLUSTER} == "true" ]]
-then
-  #Delete Control Plane Nodes:
-  if [[ $(yq e ".control-plane.metal" ${CLUSTER_CONFIG}) == "true" ]]
-  then
-    # boot_dev=$(yq e ".control-plane.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
-    for i in 0 1 2
-    do
-      deletePxeConfig $(yq e ".control-plane.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG})
-      # ssh core@okd4-master-${i}.${SUB_DOMAIN}.${LAB_DOMAIN} "sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
-    done
-  else
-    for i in 0 1 2
-    do
-      kvm_host=$(yq e .control-plane.kvm-hosts.${i} ${CLUSTER_CONFIG})
-      deleteNode ${CLUSTER_NAME}-master-${i} ${kvm_host}
-    done
-  fi
-  ${SSH} root@${ROUTER} "cat /etc/bind/db.${DOMAIN} | grep -v ${CLUSTER_NAME}-${DOMAIN}-cp > /tmp/db.${DOMAIN} && cp /tmp/db.${DOMAIN} /etc/bind/db.${DOMAIN}"
-  ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${DOMAIN}-cp > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
-fi
-
 if [[ ${DELETE_WORKER} == "true" ]]
 then
-  let NODE_COUNT=$(yq e .compute-nodes.kvm-hosts ${CLUSTER_CONFIG} | yq e 'length' -)
-  if [[ $(yq e ".compute-node.metal" ${CLUSTER_CONFIG}) == "true" ]]
+  if [[ $(yq e ".compute-nodes.metal" ${CLUSTER_CONFIG}) == "true" ]]
   then
-  let i=0
-  # boot_dev=$(yq e ".compute-nodes.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
+    let NODE_COUNT=$(yq e .compute-nodes.okd-hosts ${CLUSTER_CONFIG} | yq e 'length' -)
+    let i=0
+    boot_dev=$(yq e ".compute-nodes.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
     while [[ i -lt ${NODE_COUNT} ]]
     do
-      # ssh core@okd4-worker-${i}.${SUB_DOMAIN}.${LAB_DOMAIN} "sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
+      ${SSH} -o ConnectTimeout=5 core@okd4-worker-${i}.${SUB_DOMAIN}.${LAB_DOMAIN} "sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
       deletePxeConfig $(yq e ".compute-nodes.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG})
       i=$(( ${i} + 1 ))
     done
   else
+    let NODE_COUNT=$(yq e .compute-nodes.kvm-hosts ${CLUSTER_CONFIG} | yq e 'length' -)
     let i=0
     while [[ i -lt ${NODE_COUNT} ]]
     do
@@ -170,6 +149,28 @@ then
   fi
   ${SSH} root@${ROUTER} "cat /etc/bind/db.${DOMAIN} | grep -v ${CLUSTER_NAME}-${DOMAIN}-wk > /tmp/db.${DOMAIN} && cp /tmp/db.${DOMAIN} /etc/bind/db.${DOMAIN}"
   ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${DOMAIN}-wk > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
+fi
+
+if [[ ${DELETE_CLUSTER} == "true" ]]
+then
+  #Delete Control Plane Nodes:
+  if [[ $(yq e ".control-plane.metal" ${CLUSTER_CONFIG}) == "true" ]]
+  then
+    boot_dev=$(yq e ".control-plane.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
+    for i in 0 1 2
+    do
+      deletePxeConfig $(yq e ".control-plane.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG})
+      ${SSH} -o ConnectTimeout=5 core@okd4-master-${i}.${SUB_DOMAIN}.${LAB_DOMAIN} "sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
+    done
+  else
+    for i in 0 1 2
+    do
+      kvm_host=$(yq e .control-plane.kvm-hosts.${i} ${CLUSTER_CONFIG})
+      deleteNode ${CLUSTER_NAME}-master-${i} ${kvm_host}
+    done
+  fi
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${DOMAIN} | grep -v ${CLUSTER_NAME}-${DOMAIN}-cp > /tmp/db.${DOMAIN} && cp /tmp/db.${DOMAIN} /etc/bind/db.${DOMAIN}"
+  ${SSH} root@${ROUTER} "cat /etc/bind/db.${NET_PREFIX_ARPA} | grep -v ${CLUSTER_NAME}-${DOMAIN}-cp > /tmp/db.${NET_PREFIX_ARPA} && cp /tmp/db.${NET_PREFIX_ARPA} /etc/bind/db.${NET_PREFIX_ARPA}"
 fi
 
 if [[ ${RESET_LB} == "true" ]]

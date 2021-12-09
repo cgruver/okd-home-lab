@@ -79,11 +79,9 @@ networking:
 compute:
 - name: worker
   replicas: 0
-  hyperthreading: Enabled
 controlPlane:
   name: master
   replicas: 3
-  hyperthreading: Enabled
 platform:
   none: {}
 pullSecret: '${PULL_SECRET}'
@@ -120,6 +118,24 @@ kernel_arguments:
     - mitigations=auto
   should_not_exist:
     - mitigations=auto,nosmt
+systemd:
+   units:
+     - name: hyper-thread.service
+       enabled: true
+       contents: |
+         [Unit]
+         Description=Enable HyperThreading
+         Before=kubelet.service
+         After=systemd-machine-id-commit.service
+         ConditionKernelCommandLine=mitigations
+         
+         [Service]
+         Type=oneshot
+         RemainAfterExit=yes
+         ExecStart=/bin/rpm-ostree kargs --replace="mitigations=auto" --reboot
+         [Install]
+         RequiredBy=kubelet.service
+         WantedBy=multi-user.target
 storage:
   files:
     - path: /etc/zincati/config.d/90-disable-feature.toml
