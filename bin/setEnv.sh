@@ -30,8 +30,11 @@ echo "Enter the index of the domain that you want to work with:"
 read ENTRY
 INDEX=$(( ${ENTRY} - 1 ))
 
+export CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
 export SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
 export DOMAIN_ROUTER=$(yq e ".sub-domain-configs.[${INDEX}].router-ip" ${CONFIG_FILE})
 export DOMAIN_NETWORK=$(yq e ".sub-domain-configs.[${INDEX}].network" ${CONFIG_FILE})
+OKD_VERSION=$(yq e ".okd-version" ${CLUSTER_CONFIG})
+export PATH="${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}:${PATH}"
 
 unset array_index
