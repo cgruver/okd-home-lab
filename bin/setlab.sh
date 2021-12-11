@@ -12,7 +12,7 @@ do
       shift
     ;;
     *)
-          echo "USAGE: setEnv.sh -c=path/to/config/file -d=sub-domain-name"
+          echo "USAGE: setlab.sh -c=path/to/config/file -d=sub-domain-name"
     ;;
   esac
 done
@@ -35,6 +35,10 @@ export SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
 export DOMAIN_ROUTER=$(yq e ".sub-domain-configs.[${INDEX}].router-ip" ${CONFIG_FILE})
 export DOMAIN_NETWORK=$(yq e ".sub-domain-configs.[${INDEX}].network" ${CONFIG_FILE})
 OKD_VERSION=$(yq e ".okd-version" ${CLUSTER_CONFIG})
-export PATH="${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}:${PATH}"
+for i in $(ls ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION})
+do
+  rm -f ${OKD_LAB_PATH}/bin/${i}
+  ln -s ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}/${i} ${OKD_LAB_PATH}/bin/${i}
+done
 
 unset array_index

@@ -15,10 +15,12 @@ case $i in
     ;;
     -m|--mac)
       OS_VER=mac
+      BUTANE_DLD=apple-darwin
       shift
     ;;
     -l|--linux)
       OS_VER=linux
+      BUTANE_DLD=unknown-linux-gnu
       shift
     ;;
     *)
@@ -56,7 +58,7 @@ mkdir -p ${OKD_LAB_PATH}/tmp
 
 wget -O ${OKD_LAB_PATH}/tmp/oc.tar.gz https://github.com/openshift/okd/releases/download/${OKD_VERSION}/openshift-client-${OS_VER}-${OKD_VERSION}.tar.gz
 wget -O ${OKD_LAB_PATH}/tmp/oc-install.tar.gz https://github.com/openshift/okd/releases/download/${OKD_VERSION}/openshift-install-${OS_VER}-${OKD_VERSION}.tar.gz
-wget -O ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}/butane https://github.com/coreos/butane/releases/download/v0.12.1/butane-x86_64-apple-darwin
+wget -O ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}/butane https://github.com/coreos/butane/releases/download/${BUTANE_VERSION}/butane-x86_64-${BUTANE_DLD}
 
 tar -xzf ${OKD_LAB_PATH}/tmp/oc.tar.gz -C ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}
 tar -xzf ${OKD_LAB_PATH}/tmp/oc-install.tar.gz -C ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}
