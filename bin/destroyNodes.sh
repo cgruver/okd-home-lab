@@ -1,7 +1,6 @@
 #!/bin/bash
 
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-CLUSTER_NAME="okd4"
 RESET_LB=false
 DELETE_BOOTSTRAP=false
 DELETE_CLUSTER=false
@@ -133,7 +132,7 @@ then
     boot_dev=$(yq e ".compute-nodes.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
     while [[ i -lt ${NODE_COUNT} ]]
     do
-      ${SSH} -o ConnectTimeout=5 core@okd4-worker-${i}.${SUB_DOMAIN}.${LAB_DOMAIN} "sudo wipefs -a /dev/${boot_dev} && sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
+      ${SSH} -o ConnectTimeout=5 core@okd4-worker-${i}.${DOMAIN} "sudo wipefs -a /dev/${boot_dev} && sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
       deletePxeConfig $(yq e ".compute-nodes.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG})
       i=$(( ${i} + 1 ))
     done
@@ -160,7 +159,7 @@ then
     for i in 0 1 2
     do
       deletePxeConfig $(yq e ".control-plane.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG})
-      ${SSH} -o ConnectTimeout=5 core@okd4-master-${i}.${SUB_DOMAIN}.${LAB_DOMAIN} "sudo wipefs -a /dev/${boot_dev} && sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
+      ${SSH} -o ConnectTimeout=5 core@okd4-master-${i}.${DOMAIN} "sudo wipefs -a /dev/${boot_dev} && sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
     done
   else
     for i in 0 1 2

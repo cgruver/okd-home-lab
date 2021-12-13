@@ -339,6 +339,7 @@ if [[ ${ADD_WORKER} == "true" ]]
 then
   if [[ ${INIT_CLUSTER} != "true" ]]
   then
+    export KUBECONFIG="${OKD_LAB_PATH}/kubecreds/okd4.${DOMAIN}/kubeconfig"
     oc extract -n openshift-machine-api secret/worker-user-data --keys=userData --to=- > ${OKD_LAB_PATH}/ipxe-work-dir/worker.ign
   fi
   if [[ $(yq e ".compute-nodes.metal" ${CLUSTER_CONFIG}) == "true" ]]
