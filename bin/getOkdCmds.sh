@@ -66,3 +66,9 @@ tar -xzf ${OKD_LAB_PATH}/tmp/oc-install.tar.gz -C ${OKD_LAB_PATH}/okd-cmds/${OKD
 chmod 700 ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}/*
 
 rm -rf ${OKD_LAB_PATH}/tmp
+
+for i in $(ls ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION})
+do
+  rm -f ${OKD_LAB_PATH}/bin/${i}
+  ln -s ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}/${i} ${OKD_LAB_PATH}/bin/${i}
+done
