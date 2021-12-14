@@ -339,7 +339,13 @@ if [[ ${ADD_WORKER} == "true" ]]
 then
   if [[ ${INIT_CLUSTER} != "true" ]]
   then
-    export KUBECONFIG="${OKD_LAB_PATH}/kubecreds/okd4.${DOMAIN}/kubeconfig"
+    export KUBECONFIG="${OKD_LAB_PATH}/lab-config/kubecreds/okd4.${DOMAIN}/kubeconfig"
+    ID=$(oc whoami)
+    if [[ ${ID} != "system:admin" ]]
+    then
+      echo "ERROR: Invalid kube_config: ${KUBECONFIG}"
+      exit 1
+    fi
     oc extract -n openshift-machine-api secret/worker-user-data --keys=userData --to=- > ${OKD_LAB_PATH}/ipxe-work-dir/worker.ign
   fi
   if [[ $(yq e ".compute-nodes.metal" ${CLUSTER_CONFIG}) == "true" ]]
