@@ -45,8 +45,9 @@ fi
 LAB_DOMAIN=$(yq e ".domain" ${CONFIG_FILE})
 SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
 CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
+CLUSTER_NAME=$(yq e ".cluster-name" ${CLUSTER_CONFIG})
 DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
-export KUBECONFIG="${OKD_LAB_PATH}/lab-config/kubecreds/okd4.${DOMAIN}/kubeconfig"
+export KUBECONFIG="${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}.${DOMAIN}/kubeconfig"
 
 ID=$(oc whoami)
 if [[ ${ID} != "system:admin" ]]

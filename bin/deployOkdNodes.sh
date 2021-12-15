@@ -339,7 +339,7 @@ if [[ ${ADD_WORKER} == "true" ]]
 then
   if [[ ${INIT_CLUSTER} != "true" ]]
   then
-    export KUBECONFIG="${OKD_LAB_PATH}/lab-config/kubecreds/okd4.${DOMAIN}/kubeconfig"
+    export KUBECONFIG="${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}.${DOMAIN}/kubeconfig"
     ID=$(oc whoami)
     if [[ ${ID} != "system:admin" ]]
     then

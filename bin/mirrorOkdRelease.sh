@@ -49,4 +49,11 @@ OKD_REGISTRY=$(yq e ".remote-registry" ${CLUSTER_CONFIG})
 PULL_SECRET=$(yq e ".secret-file" ${CLUSTER_CONFIG})
 OKD_RELEASE=$(yq e ".okd-version" ${CLUSTER_CONFIG})
 
-oc adm -a ${PULL_SECRET} release mirror --from=${OKD_REGISTRY}:${OKD_RELEASE} --to=${LOCAL_REGISTRY}/${OKD_RELEASE} --to-release-image=${LOCAL_REGISTRY}/${OKD_RELEASE}:${OKD_RELEASE}
+rm -rf ${OKD_LAB_PATH}/lab-config/work-dir
+mkdir -p ${OKD_LAB_PATH}/lab-config/work-dir
+mkdir -p ${OKD_LAB_PATH}/lab-config/release-sigs
+oc adm -a ${PULL_SECRET} release mirror --from=${OKD_REGISTRY}:${OKD_RELEASE} --to=${LOCAL_REGISTRY}/okd --to-release-image=${LOCAL_REGISTRY}/okd:${OKD_RELEASE} --release-image-signature-to-dir=${OKD_LAB_PATH}/lab-config/work-dir
+
+SIG_FILE=$(ls ${OKD_LAB_PATH}/lab-config/work-dir)
+mv ${OKD_LAB_PATH}/lab-config/work-dir/${SIG_FILE} ${OKD_LAB_PATH}/lab-config/release-sigs/${OKD_RELEASE}-sig.yaml
+rm -rf ${OKD_LAB_PATH}/lab-config/work-dir
