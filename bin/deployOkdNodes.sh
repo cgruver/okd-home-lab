@@ -356,9 +356,10 @@ then
     let j=70
     while [[ i -lt ${NODE_COUNT} ]]
     do
-      configOkdNode ${NET_PREFIX}.${j} ${CLUSTER_NAME}-worker-${i}.${DOMAIN} $(yq e ".compute-nodes.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG}) worker $(yq e ".compute-nodes.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
-      echo "${CLUSTER_NAME}-worker-${i}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${CLUSTER_NAME}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
-      echo "${j}.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-worker-${i}.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+      host_name=${CLUSTER_NAME}-worker-${i}
+      configOkdNode ${NET_PREFIX}.${j} ${host_name}.${DOMAIN} $(yq e ".compute-nodes.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG}) worker $(yq e ".compute-nodes.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
+      echo "${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+      echo "${j}.${NET_PREFIX_ARPA}    IN      PTR     ${host_name}.${DOMAIN}. ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
       i=$(( ${i} + 1 ))
       j=$(( ${j} + 1 ))
     done
@@ -374,10 +375,11 @@ then
     let j=70
     while [[ i -lt ${NODE_COUNT} ]]
     do
+      host_name=${CLUSTER_NAME}-worker-${i}
       kvm_host=$(yq e ".compute-nodes.kvm-hosts.${i}" ${CLUSTER_CONFIG})
-      echo "${CLUSTER_NAME}-worker-${i}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${CLUSTER_NAME}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
-      echo "${j}.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-worker-${i}.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
-      createOkdNode ${NET_PREFIX}.${j} ${CLUSTER_NAME}-worker-${i} ${kvm_host} worker ${memory} ${cpu} ${root_vol} ${ceph_vol}
+      echo "${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+      echo "${j}.${NET_PREFIX_ARPA}    IN      PTR     ${host_name}.${DOMAIN}. ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+      createOkdNode ${NET_PREFIX}.${j} ${host_name} ${kvm_host} worker ${memory} ${cpu} ${root_vol} ${ceph_vol}
       i=$(( ${i} + 1 ))
       j=$(( ${j} + 1 ))
     done

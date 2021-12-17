@@ -14,7 +14,6 @@ do
 case $i in
     -c=*|--config=*)
       CONFIG_FILE="${i#*=}"
-      HOST_CONFIG=${CONFIG_FILE}
       shift
     ;;
     -h=*|--host=*)
@@ -170,12 +169,12 @@ function createDnsRecords() {
 function buildHostConfig() {
   local index=${1}
 
-  hostname=$(yq e ".kvm-hosts.[${index}].host-name" ${HOST_CONFIG})
-  mac_addr=$(yq e ".kvm-hosts.[${index}].mac-addr" ${HOST_CONFIG})
-  ip_octet=$(yq e ".kvm-hosts.[${index}].ip-octet" ${HOST_CONFIG})
+  hostname=$(yq e ".kvm-hosts.[${index}].host-name" ${CLUSTER_CONFIG})
+  mac_addr=$(yq e ".kvm-hosts.[${index}].mac-addr" ${CLUSTER_CONFIG})
+  ip_octet=$(yq e ".kvm-hosts.[${index}].ip-octet" ${CLUSTER_CONFIG})
   ip_addr=${NET_PREFIX}.${ip_octet}
-  disk1=$(yq e ".kvm-hosts.[${index}].disks.disk1" ${HOST_CONFIG})
-  disk2=$(yq e ".kvm-hosts.[${index}].disks.disk2" ${HOST_CONFIG})
+  disk1=$(yq e ".kvm-hosts.[${index}].disks.disk1" ${CLUSTER_CONFIG})
+  disk2=$(yq e ".kvm-hosts.[${index}].disks.disk2" ${CLUSTER_CONFIG})
 
   TEST=$(dig ${hostname}.${DOMAIN} +short)
   if [[ ${TEST} == "${ip_addr}" ]]
@@ -214,13 +213,14 @@ then
   ROUTER=$(yq e ".sub-domain-configs.[${INDEX}].router-ip" ${CONFIG_FILE})
   NETWORK=$(yq e ".sub-domain-configs.[${INDEX}].network" ${CONFIG_FILE})
   NETMASK=$(yq e ".sub-domain-configs.[${INDEX}].netmask" ${CONFIG_FILE})
-  HOST_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
+  CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
   DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
 else
   DOMAIN=$(yq e ".domain" ${CONFIG_FILE})
   ROUTER=$(yq e ".router" ${CONFIG_FILE})
   NETWORK=$(yq e ".network" ${CONFIG_FILE})
   NETMASK=$(yq e ".netmask" ${CONFIG_FILE})
+  CLUSTER_CONFIG=${CONFIG_FILE}
 fi
 
 BASTION_HOST=$(yq e ".bastion-ip" ${CONFIG_FILE})
@@ -236,7 +236,7 @@ NET_PREFIX_ARPA=${i3}.${i2}.${i1}
 # Create temporary work directory
 mkdir -p ${OKD_LAB_PATH}/boot-work-dir
 
-HOST_COUNT=$(yq e ".kvm-hosts" ${HOST_CONFIG} | yq e 'length' -)
+HOST_COUNT=$(yq e ".kvm-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
 
 if [[ ${HOST_NAME} == "" ]]
 then
@@ -251,7 +251,7 @@ else
   let i=0
   while [[ i -lt ${HOST_COUNT} ]]
   do
-    host_name=$(yq e ".kvm-hosts.[${i}].host-name" ${HOST_CONFIG})
+    host_name=$(yq e ".kvm-hosts.[${i}].host-name" ${CLUSTER_CONFIG})
     if [[ ${host_name} == ${HOST_NAME} ]]
     then
       buildHostConfig ${i}
