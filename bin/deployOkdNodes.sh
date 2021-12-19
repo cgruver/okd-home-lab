@@ -293,7 +293,7 @@ then
     # Get the MAC address for eth0 in the new VM  
     var=$(${SSH} root@${kvm_host}.${DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
     mac_addr=$(echo ${var} | cut -d" " -f5)
-    yq e ".bootstrap.mac-addr = ${mac_addr}" -i ${CLUSTER_CONFIG}
+    yq e ".bootstrap.mac-addr = \"${mac_addr}\"" -i ${CLUSTER_CONFIG}
   fi
   # Create the ignition and iPXE boot files
   configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} bootstrap sda ${VM_KERNEL_OPTS}
@@ -321,13 +321,13 @@ then
       # Get the MAC address for eth0 in the new VM  
       var=$(${SSH} root@${kvm_host}.${DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
       mac_addr=$(echo ${var} | cut -d" " -f5)
-      yq e ".control-plane.okd-hosts.[${i}].mac-addr = ${mac_addr}" -i ${CLUSTER_CONFIG}
+      yq e ".control-plane.okd-hosts.[${i}].mac-addr = \"${mac_addr}\"" -i ${CLUSTER_CONFIG}
     fi
     # Create the ignition and iPXE boot files
     configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} master ${boot_dev} ${kernel_opts}
     # Set the node values in the lab domain configuration file
-    yq e ".control-plane.okd-hosts.[${i}].name = ${host_name}" -i ${CLUSTER_CONFIG}
-    yq e ".control-plane.okd-hosts.[${i}].ip-addr = ${ip_addr}" -i ${CLUSTER_CONFIG}
+    yq e ".control-plane.okd-hosts.[${i}].name = \"${host_name}\"" -i ${CLUSTER_CONFIG}
+    yq e ".control-plane.okd-hosts.[${i}].ip-addr = \"${ip_addr}\"" -i ${CLUSTER_CONFIG}
   done
   # Create DNS Records:
   createControlPlaneDNS
@@ -380,13 +380,13 @@ then
       # Get the MAC address for eth0 in the new VM  
       var=$(${SSH} root@${kvm_host}.${DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
       mac_addr=$(echo ${var} | cut -d" " -f5)
-      yq e ".compute-nodes.[${i}].mac-addr = ${mac_addr}" -i ${CLUSTER_CONFIG}
+      yq e ".compute-nodes.[${i}].mac-addr = \"${mac_addr}\"" -i ${CLUSTER_CONFIG}
     fi
     # Create the ignition and iPXE boot files
     configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} worker ${boot_dev} ${kernel_opts}
     # Set the node values in the lab domain configuration file
-    yq e ".compute-nodes.[${i}].name = ${host_name}" -i ${CLUSTER_CONFIG}
-    yq e ".compute-nodes.[${i}].ip-addr = ${ip_addr}" -i ${CLUSTER_CONFIG}
+    yq e ".compute-nodes.[${i}].name = \"${host_name}\"" -i ${CLUSTER_CONFIG}
+    yq e ".compute-nodes.[${i}].ip-addr = \"${ip_addr}\"" -i ${CLUSTER_CONFIG}
     # Create DNS entries
     echo "${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
     echo "${j}    IN      PTR     ${host_name}.${DOMAIN}. ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone

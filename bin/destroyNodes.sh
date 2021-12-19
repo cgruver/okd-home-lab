@@ -1,7 +1,5 @@
 #!/bin/bash
 
-set -x
-
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 RESET_LB=false
 DELETE_BOOTSTRAP=false
