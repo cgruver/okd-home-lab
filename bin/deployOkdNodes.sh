@@ -54,11 +54,11 @@ _etcd-server-ssl._tcp.${CLUSTER_NAME}.${DOMAIN}    86400     IN    SRV     0    
 EOF
 
 cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
-2.${NET_PREFIX_ARPA}     IN      PTR     ${CLUSTER_NAME}-lb01.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-cp
-49.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-bootstrap.${DOMAIN}.   ; ${CLUSTER_NAME}-${DOMAIN}-bs
-60.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-0.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
-61.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-1.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
-62.${NET_PREFIX_ARPA}    IN      PTR     ${CLUSTER_NAME}-master-2.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
+2     IN      PTR     ${CLUSTER_NAME}-lb01.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-cp
+49    IN      PTR     ${CLUSTER_NAME}-bootstrap.${DOMAIN}.   ; ${CLUSTER_NAME}-${DOMAIN}-bs
+60    IN      PTR     ${CLUSTER_NAME}-master-0.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
+61    IN      PTR     ${CLUSTER_NAME}-master-1.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
+62    IN      PTR     ${CLUSTER_NAME}-master-2.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
 EOF
 
 }
@@ -90,10 +90,10 @@ additionalTrustBundle: |
 ${NEXUS_CERT}
 imageContentSources:
 - mirrors:
-  - ${REGISTRY}/${OKD_RELEASE}
+  - ${REGISTRY}/okd
   source: quay.io/openshift/okd
 - mirrors:
-  - ${REGISTRY}/${OKD_RELEASE}
+  - ${REGISTRY}/okd
   source: quay.io/openshift/okd-content
 EOF
 }
@@ -105,6 +105,7 @@ function configOkdNode() {
   local mac=${3}
   local role=${4}
   local boot_dev=${5}
+  local kernel_opts=${6}
 
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${mac//:/-}.yml
 variant: fcos
@@ -175,7 +176,7 @@ EOF
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
 #!ipxe
 
-kernel http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst.install_dev=/dev/${boot_dev} coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign ${KERNEL_OPTS}
+kernel http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst.install_dev=/dev/${boot_dev} coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign ${kernel_opts}
 initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/initrd
 initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.img
 
@@ -186,7 +187,7 @@ cat ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${mac//:/-}.yml | butane -d ${OKD_LAB
 
 }
 
-function createOkdNode() {
+function createOkdVmNode() {
     
   local ip_addr=${1}
   local host_name=${2}
@@ -206,13 +207,6 @@ function createOkdNode() {
   ${SSH} root@${kvm_host}.${DOMAIN} "mkdir -p /VirtualMachines/${host_name}"
   ${SSH} root@${kvm_host}.${DOMAIN} "virt-install --print-xml 1 --name ${host_name} --memory ${memory} --vcpus ${cpu} --boot=hd,network,menu=on,useserial=on ${DISK_CONFIG} --network bridge=br0 --graphics none --noautoconsole --os-variant centos7.0 --cpu host-passthrough,match=exact > /VirtualMachines/${host_name}.xml"
   ${SSH} root@${kvm_host}.${DOMAIN} "virsh define /VirtualMachines/${host_name}.xml"
-
-  # Get the MAC address for eth0 in the new VM  
-  var=$(${SSH} root@${kvm_host}.${DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
-  NET_MAC=$(echo ${var} | cut -d" " -f5)
-
-  # Create node specific files
-  configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${NET_MAC} ${role} sda
 }
 
 DONE=false
@@ -263,22 +257,15 @@ mkdir -p ${OKD_LAB_PATH}/dns-work-dir
 
 if [[ ${INIT_CLUSTER} == "true" ]]
 then
-  OKD_RELEASE=$(oc version --client=true | cut -d" " -f3)
   SSH_KEY=$(cat ${OKD_LAB_PATH}/id_rsa.pub)
   PULL_SECRET=$(cat ${OKD_LAB_PATH}/pull_secret.json)
-  NEXUS_CERT=$(openssl s_client -showcerts -connect ${REGISTRY} </dev/null 2>/dev/null|openssl x509 -outform PEM | while read line; do echo "  $line"; done)
-  if [[ $(yq e ".control-plane.metal" ${CLUSTER_CONFIG}) == "true" ]]
-  then
-    NODE_COUNT=$(yq e ".control-plane.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
-  else
-    NODE_COUNT=$(yq e ".control-plane.kvm-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
-  fi
-  if [[ ${NODE_COUNT} != "3" ]]
+  NEXUS_CERT=$(openssl s_client -showcerts -connect ${REGISTRY} </dev/null 2>/dev/null|openssl x509 -outform PEM | while read line; do echo "  ${line}"; done)
+  CP_COUNT=$(yq e ".control-plane.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
+  if [[ ${CP_COUNT} != "3" ]]
   then
     echo "There must be 3 host entries for the control plane."
     exit 1
   fi
-  NODE_COUNT=""
 
   # Create and deploy ignition files
   rm -rf ${OKD_LAB_PATH}/okd-install-dir
@@ -290,38 +277,58 @@ then
 
   # Create Bootstrap Node:
   KERNEL_OPTS=${VM_KERNEL_OPTS}
+  host_name=${CLUSTER_NAME}-bootstrap
+  ip_addr=${NET_PREFIX}.49
   if [[ $(yq e ".bootstrap.metal" ${CLUSTER_CONFIG}) == "true" ]]
   then
-    configOkdNode ${NET_PREFIX}.49 ${CLUSTER_NAME}-bootstrap.${DOMAIN} $(yq e ".bootstrap.mac-addr" ${CLUSTER_CONFIG}) bootstrap $(yq e ".bootstrap.boot-dev" ${CLUSTER_CONFIG})
+    mac_addr=$(yq e ".bootstrap.mac-addr" ${CLUSTER_CONFIG})
     mkdir -p ${OKD_LAB_PATH}/bootstrap
     qemu-img create -f qcow2 ${OKD_LAB_PATH}/bootstrap/bootstrap-node.qcow2 50G
   else
     kvm_host=$(yq e ".bootstrap.kvm-host" ${CLUSTER_CONFIG})
-    memory=$(yq e ".bootstrap.memory" ${CLUSTER_CONFIG})
-    cpu=$(yq e ".bootstrap.cpu" ${CLUSTER_CONFIG})
-    root_vol=$(yq e ".bootstrap.root_vol" ${CLUSTER_CONFIG})
-    createOkdNode ${NET_PREFIX}.49 ${CLUSTER_NAME}-bootstrap ${kvm_host} bootstrap ${memory} ${cpu} ${root_vol} 0
+    memory=$(yq e ".bootstrap.node-spec.memory" ${CLUSTER_CONFIG})
+    cpu=$(yq e ".bootstrap.node-spec.cpu" ${CLUSTER_CONFIG})
+    root_vol=$(yq e ".bootstrap.node-spec.root_vol" ${CLUSTER_CONFIG})
+    createOkdVmNode ${ip_addr} ${host_name} ${kvm_host} bootstrap ${memory} ${cpu} ${root_vol} 0
+    # Get the MAC address for eth0 in the new VM  
+    var=$(${SSH} root@${kvm_host}.${DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
+    mac_addr=$(echo ${var} | cut -d" " -f5)
+    yq e ".bootstrap.mac-addr = ${mac_addr}" -i ${CLUSTER_CONFIG}
   fi
+  # Create the ignition and iPXE boot files
+  configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} bootstrap sda ${VM_KERNEL_OPTS}
 
   #Create Control Plane Nodes:
-  if [[ $(yq e ".control-plane.metal" ${CLUSTER_CONFIG}) == "true" ]]
-  then
-    KERNEL_OPTS=${METAL_KERNEL_OPTS}
-    for i in 0 1 2
-    do
-      configOkdNode ${NET_PREFIX}.6${i} ${CLUSTER_NAME}-master-${i}.${DOMAIN} $(yq e ".control-plane.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG}) master $(yq e ".control-plane.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
-    done
-  else
-    KERNEL_OPTS=${VM_KERNEL_OPTS}
-    memory=$(yq e ".control-plane.memory" ${CLUSTER_CONFIG})
-    cpu=$(yq e ".control-plane.cpu" ${CLUSTER_CONFIG})
-    root_vol=$(yq e ".control-plane.root_vol" ${CLUSTER_CONFIG})
-    for i in 0 1 2
-    do
-      kvm_host=$(yq e ".control-plane.kvm-hosts.${i}" ${CLUSTER_CONFIG})
-      createOkdNode ${NET_PREFIX}.6${i} ${CLUSTER_NAME}-master-${i} ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
-    done
-  fi
+  metal=$(yq e ".control-plane.metal" ${CLUSTER_CONFIG})
+    
+  for i in 0 1 2
+  do
+    ip_addr=${NET_PREFIX}.6${i}
+    host_name=${CLUSTER_NAME}-master-${i}
+    if [[ ${metal} == "true" ]]
+    then
+      kernel_opts=${METAL_KERNEL_OPTS}
+      mac_addr=$(yq e ".control-plane.okd-hosts.[${i}].mac-addr" ${CLUSTER_CONFIG})
+      boot_dev=$(yq e ".control-plane.okd-hosts.[${i}].boot-dev" ${CLUSTER_CONFIG})
+    else
+      kernel_opts=${VM_KERNEL_OPTS}
+      memory=$(yq e ".control-plane.node-spec.memory" ${CLUSTER_CONFIG})
+      cpu=$(yq e ".control-plane.node-spec.cpu" ${CLUSTER_CONFIG})
+      root_vol=$(yq e ".control-plane.node-spec.root_vol" ${CLUSTER_CONFIG})
+      kvm_host=$(yq e ".control-plane.okd-hosts.[${i}].kvm-host" ${CLUSTER_CONFIG})
+      # Create the VM
+      createOkdVmNode ${ip_addr} ${host_name} ${kvm_host} master ${memory} ${cpu} ${root_vol} 0
+      # Get the MAC address for eth0 in the new VM  
+      var=$(${SSH} root@${kvm_host}.${DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
+      mac_addr=$(echo ${var} | cut -d" " -f5)
+      yq e ".control-plane.okd-hosts.[${i}].mac-addr = ${mac_addr}" -i ${CLUSTER_CONFIG}
+    fi
+    # Create the ignition and iPXE boot files
+    configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} master ${boot_dev} ${kernel_opts}
+    # Set the node values in the lab domain configuration file
+    yq e ".control-plane.okd-hosts.[${i}].name = ${host_name}" -i ${CLUSTER_CONFIG}
+    yq e ".control-plane.okd-hosts.[${i}].ip-addr = ${ip_addr}" -i ${CLUSTER_CONFIG}
+  done
   # Create DNS Records:
   createControlPlaneDNS
 
@@ -348,42 +355,45 @@ then
     fi
     oc extract -n openshift-machine-api secret/worker-user-data --keys=userData --to=- > ${OKD_LAB_PATH}/ipxe-work-dir/worker.ign
   fi
-  if [[ $(yq e ".compute-nodes.metal" ${CLUSTER_CONFIG}) == "true" ]]
-  then
-    let NODE_COUNT=$(yq e ".compute-nodes.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
-    KERNEL_OPTS=${METAL_KERNEL_OPTS}
-    let i=0
-    let j=70
-    while [[ i -lt ${NODE_COUNT} ]]
-    do
-      host_name=${CLUSTER_NAME}-worker-${i}
-      configOkdNode ${NET_PREFIX}.${j} ${host_name}.${DOMAIN} $(yq e ".compute-nodes.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG}) worker $(yq e ".compute-nodes.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
-      echo "${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
-      echo "${j}.${NET_PREFIX_ARPA}    IN      PTR     ${host_name}.${DOMAIN}. ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
-      i=$(( ${i} + 1 ))
-      j=$(( ${j} + 1 ))
-    done
-  else
-    let NODE_COUNT=$(yq e ".compute-nodes.kvm-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
-    KERNEL_OPTS=${VM_KERNEL_OPTS}
-    memory=$(yq e ".compute-nodes.memory" ${CLUSTER_CONFIG})
-    cpu=$(yq e ".compute-nodes.cpu" ${CLUSTER_CONFIG})
-    root_vol=$(yq e ".compute-nodes.root_vol" ${CLUSTER_CONFIG})
-    ceph_vol=$(yq e ".compute-nodes.ceph_vol" ${CLUSTER_CONFIG})
-    
-    let i=0
-    let j=70
-    while [[ i -lt ${NODE_COUNT} ]]
-    do
-      host_name=${CLUSTER_NAME}-worker-${i}
-      kvm_host=$(yq e ".compute-nodes.kvm-hosts.${i}" ${CLUSTER_CONFIG})
-      echo "${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
-      echo "${j}.${NET_PREFIX_ARPA}    IN      PTR     ${host_name}.${DOMAIN}. ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
-      createOkdNode ${NET_PREFIX}.${j} ${host_name} ${kvm_host} worker ${memory} ${cpu} ${root_vol} ${ceph_vol}
-      i=$(( ${i} + 1 ))
-      j=$(( ${j} + 1 ))
-    done
-  fi
+  let NODE_COUNT=$(yq e ".compute-nodes.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
+  let i=0
+  let j=70
+  while [[ i -lt ${NODE_COUNT} ]]
+  do
+    host_name=${CLUSTER_NAME}-worker-${i}
+    ip_addr=${NET_PREFIX}.${j}
+    if [[ $(yq e ".compute-nodes.[${i}].metal" ${CLUSTER_CONFIG}) == "true" ]]
+    then
+      kernel_opts=${METAL_KERNEL_OPTS}
+      mac_addr=$(yq e ".compute-nodes.[${i}].mac-addr" ${CLUSTER_CONFIG})
+      boot_dev=$(yq e ".compute-nodes.okd-hosts.[${i}].boot-dev" ${CLUSTER_CONFIG})
+    else
+      kernel_opts=${VM_KERNEL_OPTS}
+      boot_dev="sda"
+      memory=$(yq e ".compute-nodes.[${i}].node-spec.memory" ${CLUSTER_CONFIG})
+      cpu=$(yq e ".compute-nodes.[${i}].node-spec.cpu" ${CLUSTER_CONFIG})
+      root_vol=$(yq e ".compute-nodes.[${i}].node-spec.root_vol" ${CLUSTER_CONFIG})
+      ceph_vol=$(yq e ".compute-nodes.[${i}].node-spec.ceph_vol" ${CLUSTER_CONFIG})
+      kvm_host=$(yq e ".compute-nodes.[${i}].kvm-host" ${CLUSTER_CONFIG})
+      # Create the VM
+      createOkdVmNode ${ip_addr} ${host_name} ${kvm_host} worker ${memory} ${cpu} ${root_vol} ${ceph_vol}
+      # Get the MAC address for eth0 in the new VM  
+      var=$(${SSH} root@${kvm_host}.${DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
+      mac_addr=$(echo ${var} | cut -d" " -f5)
+      yq e ".compute-nodes.[${i}].mac-addr = ${mac_addr}" -i ${CLUSTER_CONFIG}
+    fi
+    # Create the ignition and iPXE boot files
+    configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} worker ${boot_dev} ${kernel_opts}
+    # Set the node values in the lab domain configuration file
+    yq e ".compute-nodes.[${i}].name = ${host_name}" -i ${CLUSTER_CONFIG}
+    yq e ".compute-nodes.[${i}].ip-addr = ${ip_addr}" -i ${CLUSTER_CONFIG}
+    # Create DNS entries
+    echo "${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+    echo "${j}    IN      PTR     ${host_name}.${DOMAIN}. ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+
+    i=$(( ${i} + 1 ))
+    j=$(( ${j} + 1 ))
+  done
 fi
 
 cat ${OKD_LAB_PATH}/dns-work-dir/forward.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${DOMAIN}"

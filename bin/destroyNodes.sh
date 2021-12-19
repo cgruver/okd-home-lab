@@ -1,15 +1,19 @@
 #!/bin/bash
 
+set -x
+
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 RESET_LB=false
 DELETE_BOOTSTRAP=false
 DELETE_CLUSTER=false
 DELETE_WORKER=false
-DELETE_KVM_HOSTS=false
+DELETE_KVM_HOST=false
+W_HOST_NAME=""
 W_HOST_INDEX=""
 K_HOST_INDEX=""
 M_HOST_INDEX=""
-NODE_COUNT=0
+let NODE_COUNT=0
+
 CONFIG_FILE=${LAB_CONFIG_FILE}
 
 for i in "$@"
@@ -29,22 +33,23 @@ do
     ;;
     -w=*|--worker=*)
       DELETE_WORKER=true
-      W_HOST_INDEX="${i#*=}"
+      W_HOST_NAME="${i#*=}"
       shift
     ;;
     -r|--reset)
       RESET_LB=true
       DELETE_CLUSTER=true
       DELETE_WORKER=true
+      W_HOST_NAME="all"
       shift
     ;;
     -k=*|--kvm-host=*)
       DELETE_KVM_HOST=true
-      K_HOST_INDEX="${i#*=}"
+      K_HOST_NAME="${i#*=}"
       shift
     ;;
     -m=*|--master=*)
-      M_HOST_INDEX="${i#*=}"
+      M_HOST_NAME="${i#*=}"
       shift
     ;;
     *)
@@ -55,14 +60,8 @@ done
 
 # Destroy the VM
 function deleteNodeVm() {
-  
   local host_name=${1}
   local kvm_host=${2}
-
-  var=$(${SSH} root@${kvm_host}.${DOMAIN} "virsh -q domiflist ${host_name} | grep br0")
-  NET_MAC=$(echo ${var} | cut -d" " -f5)
-
-  deletePxeConfig ${NET_MAC}
 
   ${SSH} root@${kvm_host}.${DOMAIN} "virsh destroy ${host_name}"
   ${SSH} root@${kvm_host}.${DOMAIN} "virsh undefine ${host_name}"
@@ -77,12 +76,13 @@ function destroyMetal() {
   local hostname=${2}
   local boot_dev=${3}
 
-  ${SSH} -o ConnectTimeout=5 ${user}@${hostname}.${DOMAIN} "sudo wipefs -a /dev/${boot_dev} && sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
+  ${SSH} -o ConnectTimeout=5 ${user}@${hostname}.${DOMAIN} "sudo /lab-utils/rebuild-host.sh -s"
+
+  # ${SSH} -o ConnectTimeout=5 ${user}@${hostname}.${DOMAIN} "sudo umount /boot && sudo wipefs /dev/${boot_dev}1 && sudo wipefs /dev/${boot_dev}2 && sudo wipefs /dev/${boot_dev}3 && sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
 }
 
 # Remove the iPXE boot files
 function deletePxeConfig() {
-
   local mac_addr=${1}
   
   ${SSH} root@${ROUTER} "rm -f /data/tftpboot/ipxe/${mac_addr//:/-}.ipxe"
@@ -106,7 +106,7 @@ function validateAndSetVars() {
     domain_name=$(yq e ".sub-domain-configs.[${i}].name" ${CONFIG_FILE})
     if [[ ${domain_name} == ${SUB_DOMAIN} ]]
     then
-      INDEX=${i}
+      D_INDEX=${i}
       DONE=true
       break
     fi
@@ -120,32 +120,91 @@ function validateAndSetVars() {
 
   LAB_DOMAIN=$(yq e ".domain" ${CONFIG_FILE})
   BASTION_HOST=$(yq e ".bastion-ip" ${CONFIG_FILE})
-  SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
-  ROUTER=$(yq e ".sub-domain-configs.[${INDEX}].router-ip" ${CONFIG_FILE})
-  NETWORK=$(yq e ".sub-domain-configs.[${INDEX}].network" ${CONFIG_FILE})
-  CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
+  SUB_DOMAIN=$(yq e ".sub-domain-configs.[${D_INDEX}].name" ${CONFIG_FILE})
+  ROUTER=$(yq e ".sub-domain-configs.[${D_INDEX}].router-ip" ${CONFIG_FILE})
+  NETWORK=$(yq e ".sub-domain-configs.[${D_INDEX}].network" ${CONFIG_FILE})
+  CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${D_INDEX}].cluster-config-file" ${CONFIG_FILE})
   DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
   CLUSTER_NAME=$(yq e ".cluster-name" ${CLUSTER_CONFIG})
 
-  if [[ $(yq e ".compute-nodes.metal" ${CLUSTER_CONFIG}) == "true" ]] # Bare Metal Nodes
+  if [[ ${DELETE_WORKER} == "true" ]] && [[ ${W_HOST_NAME} != "all" ]]
   then
-    let NODE_COUNT=$(yq e .compute-nodes.okd-hosts ${CLUSTER_CONFIG} | yq e 'length' -)
-  else
-    let NODE_COUNT=$(yq e .compute-nodes.kvm-hosts ${CLUSTER_CONFIG} | yq e 'length' -)
-  fi
-
-  if [[ ${DELETE_WORKER} == "true" ]] && [[ ${W_HOST_INDEX} != "-1" ]]
-  then
-    if ![[ ${W_HOST_INDEX} == ?(-)+([:digit:]) ]]
+    if [[ ${W_HOST_NAME} == "" ]]
     then
-      echo "option -w=<index>, index must be a positive integer indicating the node to delete, or -1 to delete all worker nodes."
-      exit 1
-    elif [[ ${W_HOST_INDEX} -ge ${NODE_COUNT} ]] || [[ ${W_HOST_INDEX} -lt 0 ]]
-    then
-      echo "option -w=<index>, index must be a positive integer indicating the node to delete, or -1 to delete all worker nodes."
+      echo "-w | --worker must have a value"
       exit 1
     fi
+    let i=0
+    DONE=false
+    let NODE_COUNT=$(yq e .compute-nodes ${CLUSTER_CONFIG} | yq e 'length' -)
+    while [[ i -lt ${NODE_COUNT} ]]
+    do
+      host_name=$(yq e ".compute-nodes.[${i}].name" ${CLUSTER_CONFIG})
+      if [[ ${host_name} == ${W_HOST_NAME} ]]
+      then
+        W_HOST_INDEX=${i}
+        DONE=true
+        break;
+      fi
+      i=$(( ${i} + 1 ))
+    done
   fi
+
+  if [[ ${DELETE_KVM_HOST} == "true" ]]
+  then
+    echo "This method is not implemented yet: -k|--kvm-host"
+    exit 1
+  fi
+}
+
+function deleteBootstrap() {
+  #Delete Bootstrap
+  if [[ $(yq e ".bootstrap.metal" ${CLUSTER_CONFIG}) == "true" ]]
+  then
+    kill $(ps -ef | grep qemu | grep bootstrap | awk '{print $2}')
+    rm -rf ${OKD_LAB_PATH}/bootstrap
+  else
+    host_name="${CLUSTER_NAME}-bootstrap"
+    kvm_host=$(yq e .bootstrap.kvm-host ${CLUSTER_CONFIG})
+    deleteNodeVm ${host_name} ${kvm_host}
+  fi
+  deletePxeConfig $(yq e ".bootstrap.mac-addr" ${CLUSTER_CONFIG})
+  deleteDns ${CLUSTER_NAME}-${DOMAIN}-bs
+  ${SSH} root@${ROUTER} "cp /etc/haproxy.no-bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop && /etc/init.d/haproxy start"
+}
+
+function deleteWorker() {
+  local index=${1}
+
+  host_name=$(yq e ".compute-nodes.[${index}].name" ${CLUSTER_CONFIG})
+  if [[ $(yq e ".compute-nodes.[${index}].metal" ${CLUSTER_CONFIG})  == "true" ]]
+  then
+    boot_dev=$(yq e ".compute-nodes.[${index}].boot-dev" ${CLUSTER_CONFIG})
+    destroyMetal core ${host_name} ${boot_dev}
+  else
+    kvm_host=$(yq e .compute-nodes.[${index}].kvm-host ${CLUSTER_CONFIG})
+    deleteNodeVm ${host_name} ${kvm_host}
+  fi
+  deleteDns ${host_name}-${DOMAIN}
+  deletePxeConfig $(yq e ".compute-nodes.[${index}].mac-addr" ${CLUSTER_CONFIG})
+}
+
+function deleteCluster() {
+  #Delete Control Plane Nodes:
+  metal=$(yq e ".control-plane.metal" ${CLUSTER_CONFIG})
+  for i in 0 1 2
+  do
+    if [[ ${metal} == "true" ]]
+    then
+      boot_dev=$(yq e ".control-plane.okd-hosts.[${i}].boot-dev" ${CLUSTER_CONFIG})
+      destroyMetal core ${CLUSTER_NAME}-master-${i} ${boot_dev}
+    else
+      kvm_host=$(yq e .control-plane.okd-hosts.[${i}].kvm-host ${CLUSTER_CONFIG})
+      deleteNodeVm ${CLUSTER_NAME}-master-${i} ${kvm_host}
+    fi
+    deletePxeConfig $(yq e ".control-plane.okd-hosts.[${i}].mac-addr" ${CLUSTER_CONFIG})
+  done
+  deleteDns ${CLUSTER_NAME}-${DOMAIN}-cp
 }
 
 validateAndSetVars
@@ -157,95 +216,28 @@ NET_PREFIX_ARPA=${i3}.${i2}.${i1}
 
 if [[ ${DELETE_BOOTSTRAP} == "true" ]]
 then
-  #Delete Bootstrap
-  if [[ $(yq e ".bootstrap.metal" ${CLUSTER_CONFIG}) == "true" ]]
-  then
-    deletePxeConfig $(yq e ".bootstrap.mac-addr" ${CLUSTER_CONFIG})
-    kill $(ps -ef | grep qemu | grep bootstrap | awk '{print $2}')
-    rm -rf ${OKD_LAB_PATH}/bootstrap
-  else
-    host_name="${CLUSTER_NAME}-bootstrap"
-    kvm_host=$(yq e .bootstrap.kvm-host ${CLUSTER_CONFIG})
-    deleteNodeVm ${host_name} ${kvm_host}
-  fi
-  deleteDns ${CLUSTER_NAME}-${DOMAIN}-bs
-  ${SSH} root@${ROUTER} "cp /etc/haproxy.no-bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop && /etc/init.d/haproxy start"
+  deleteBootstrap
 fi
 
 if [[ ${DELETE_WORKER} == "true" ]]
 then
-  if [[ $(yq e ".compute-nodes.metal" ${CLUSTER_CONFIG}) == "true" ]] # Bare Metal Nodes
+  if [[ ${W_HOST_NAME} == "all" ]] # Delete all Nodes
   then
-    let NODE_COUNT=$(yq e .compute-nodes.okd-hosts ${CLUSTER_CONFIG} | yq e 'length' -)
-    if [[ ${W_HOST_INDEX} == "-1" ]] # Delete all Nodes
-    then
-      let i=0
-      let j=${NODE_COUNT}
-    else # Just delete one node
-      let i=${W_HOST_INDEX}
-      NODE_COUNT=$(( ${i} + 1 ))
-      if [[ i -lt ${NODE_COUNT} ]] && [[ i -ge 0 ]]
-      then
-        
-      else
-        echo "The worker node index must be between 0 and $(( ${NODE_COUNT} -1 ))"
-        exit 1
-      fi
+    let j=$(yq e .compute-nodes ${CLUSTER_CONFIG} | yq e 'length' -)
+    let i=0
     while [[ i -lt ${j} ]]
-      do
-        boot_dev=$(yq e ".compute-nodes.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
-        destroyMetal core ${CLUSTER_NAME}-worker-${i}.${DOMAIN} ${boot_dev}
-        deleteDns ${CLUSTER_NAME}-worker-${i}-${DOMAIN}
-        deletePxeConfig $(yq e ".compute-nodes.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG})
-        i=$(( ${i} + 1 ))
-      done
-    fi
-  else # KVM Nodes
-    
-    if [[ ${W_HOST_INDEX} == "-1" ]]
-    then
-      let i=0
-      while [[ i -lt ${NODE_COUNT} ]]
-      do
-        kvm_host=$(yq e .compute-nodes.kvm-hosts.${i} ${CLUSTER_CONFIG})
-        deleteNodeVm ${CLUSTER_NAME}-worker-${i} ${kvm_host}
-        deleteDns ${CLUSTER_NAME}-worker-${i}-${DOMAIN}
-        i=$(( ${i} + 1 ))
-      done
-    else
-      let i=${W_HOST_INDEX}
-      if [[ i -lt ${NODE_COUNT} ]] && [[ i -ge 0 ]]
-      then
-        kvm_host=$(yq e .compute-nodes.kvm-hosts.${i} ${CLUSTER_CONFIG})
-        deleteNodeVm ${CLUSTER_NAME}-worker-${i} ${kvm_host}
-        deleteDns ${CLUSTER_NAME}-worker-${i}-${DOMAIN}
-      else
-        echo "The worker node index must be between 0 and $(( ${NODE_COUNT} -1 ))"
-        exit 1
-      fi
-    fi
+    do
+      deleteWorker ${i}
+      i=$(( ${i} + 1 ))
+    done
+  else
+    deleteWorker ${W_HOST_INDEX}
   fi
 fi
 
 if [[ ${DELETE_CLUSTER} == "true" ]]
 then
-  #Delete Control Plane Nodes:
-  if [[ $(yq e ".control-plane.metal" ${CLUSTER_CONFIG}) == "true" ]]
-  then
-    boot_dev=$(yq e ".control-plane.okd-hosts.${i}.boot-dev" ${CLUSTER_CONFIG})
-    for i in 0 1 2
-    do
-      destroyMetal core ${CLUSTER_NAME}-master-${i}.${DOMAIN} ${boot_dev}
-      deletePxeConfig $(yq e ".control-plane.okd-hosts.${i}.mac-addr" ${CLUSTER_CONFIG})
-    done
-  else
-    for i in 0 1 2
-    do
-      kvm_host=$(yq e .control-plane.kvm-hosts.${i} ${CLUSTER_CONFIG})
-      deleteNodeVm ${CLUSTER_NAME}-master-${i} ${kvm_host}
-    done
-  fi
-  deleteDns ${CLUSTER_NAME}-${DOMAIN}-cp
+  deleteCluster
 fi
 
 if [[ ${RESET_LB} == "true" ]]
@@ -253,9 +245,9 @@ then
   ${SSH} root@${ROUTER} "cp /etc/haproxy.bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop && /etc/init.d/haproxy start" 
 fi
 
-if [[ ${DELETE_KVM_HOSTS} == "true" ]]
+if [[ ${DELETE_KVM_HOST} == "true" ]]
 then
-
+  echo "-k not implemented"
 fi
 
 ${SSH} root@${ROUTER} "/etc/init.d/named stop && /etc/init.d/named start"
