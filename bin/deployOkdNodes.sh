@@ -105,7 +105,6 @@ function configOkdNode() {
   local mac=${3}
   local role=${4}
   local boot_dev=${5}
-  local kernel_opts=${6}
 
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${mac//:/-}.yml
 variant: fcos
@@ -176,7 +175,7 @@ EOF
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
 #!ipxe
 
-kernel http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst.install_dev=/dev/${boot_dev} coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign ${kernel_opts}
+kernel http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst.install_dev=/dev/${boot_dev} coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign ${KERNEL_OPTS}
 initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/initrd
 initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.img
 
@@ -307,11 +306,11 @@ then
     host_name=${CLUSTER_NAME}-master-${i}
     if [[ ${metal} == "true" ]]
     then
-      kernel_opts=${METAL_KERNEL_OPTS}
+      KERNEL_OPTS=${METAL_KERNEL_OPTS}
       mac_addr=$(yq e ".control-plane.okd-hosts.[${i}].mac-addr" ${CLUSTER_CONFIG})
       boot_dev=$(yq e ".control-plane.okd-hosts.[${i}].boot-dev" ${CLUSTER_CONFIG})
     else
-      kernel_opts=${VM_KERNEL_OPTS}
+      KERNEL_OPTS=${VM_KERNEL_OPTS}
       memory=$(yq e ".control-plane.node-spec.memory" ${CLUSTER_CONFIG})
       cpu=$(yq e ".control-plane.node-spec.cpu" ${CLUSTER_CONFIG})
       root_vol=$(yq e ".control-plane.node-spec.root_vol" ${CLUSTER_CONFIG})
@@ -324,7 +323,7 @@ then
       yq e ".control-plane.okd-hosts.[${i}].mac-addr = \"${mac_addr}\"" -i ${CLUSTER_CONFIG}
     fi
     # Create the ignition and iPXE boot files
-    configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} master ${boot_dev} ${kernel_opts}
+    configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} master ${boot_dev}
     # Set the node values in the lab domain configuration file
     yq e ".control-plane.okd-hosts.[${i}].name = \"${host_name}\"" -i ${CLUSTER_CONFIG}
     yq e ".control-plane.okd-hosts.[${i}].ip-addr = \"${ip_addr}\"" -i ${CLUSTER_CONFIG}
@@ -364,11 +363,11 @@ then
     ip_addr=${NET_PREFIX}.${j}
     if [[ $(yq e ".compute-nodes.[${i}].metal" ${CLUSTER_CONFIG}) == "true" ]]
     then
-      kernel_opts=${METAL_KERNEL_OPTS}
+      KERNEL_OPTS=${METAL_KERNEL_OPTS}
       mac_addr=$(yq e ".compute-nodes.[${i}].mac-addr" ${CLUSTER_CONFIG})
       boot_dev=$(yq e ".compute-nodes.okd-hosts.[${i}].boot-dev" ${CLUSTER_CONFIG})
     else
-      kernel_opts=${VM_KERNEL_OPTS}
+      KERNEL_OPTS=${VM_KERNEL_OPTS}
       boot_dev="sda"
       memory=$(yq e ".compute-nodes.[${i}].node-spec.memory" ${CLUSTER_CONFIG})
       cpu=$(yq e ".compute-nodes.[${i}].node-spec.cpu" ${CLUSTER_CONFIG})
@@ -383,7 +382,7 @@ then
       yq e ".compute-nodes.[${i}].mac-addr = \"${mac_addr}\"" -i ${CLUSTER_CONFIG}
     fi
     # Create the ignition and iPXE boot files
-    configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} worker ${boot_dev} ${kernel_opts}
+    configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} worker ${boot_dev}
     # Set the node values in the lab domain configuration file
     yq e ".compute-nodes.[${i}].name = \"${host_name}\"" -i ${CLUSTER_CONFIG}
     yq e ".compute-nodes.[${i}].ip-addr = \"${ip_addr}\"" -i ${CLUSTER_CONFIG}

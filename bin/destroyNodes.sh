@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 RESET_LB=false
 DELETE_BOOTSTRAP=false
@@ -74,7 +76,7 @@ function destroyMetal() {
   local hostname=${2}
   local boot_dev=${3}
 
-  ${SSH} -o ConnectTimeout=5 ${user}@${hostname}.${DOMAIN} "sudo /lab-utils/rebuild-host.sh -s"
+  # ${SSH} -o ConnectTimeout=5 ${user}@${hostname}.${DOMAIN} "sudo /lab-utils/rebuild-host.sh -s"
 
   # ${SSH} -o ConnectTimeout=5 ${user}@${hostname}.${DOMAIN} "sudo umount /boot && sudo wipefs /dev/${boot_dev}1 && sudo wipefs /dev/${boot_dev}2 && sudo wipefs /dev/${boot_dev}3 && sudo dd if=/dev/zero of=/dev/${boot_dev} bs=512 count=1 && sudo poweroff"
 }
