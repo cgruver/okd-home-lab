@@ -354,7 +354,7 @@ then
     fi
     oc extract -n openshift-machine-api secret/worker-user-data --keys=userData --to=- > ${OKD_LAB_PATH}/ipxe-work-dir/worker.ign
   fi
-  let NODE_COUNT=$(yq e ".compute-nodes.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
+  let NODE_COUNT=$(yq e ".compute-nodes" ${CLUSTER_CONFIG} | yq e 'length' -)
   let i=0
   let j=70
   while [[ i -lt ${NODE_COUNT} ]]
@@ -365,7 +365,7 @@ then
     then
       KERNEL_OPTS=${METAL_KERNEL_OPTS}
       mac_addr=$(yq e ".compute-nodes.[${i}].mac-addr" ${CLUSTER_CONFIG})
-      boot_dev=$(yq e ".compute-nodes.okd-hosts.[${i}].boot-dev" ${CLUSTER_CONFIG})
+      boot_dev=$(yq e ".compute-nodes.[${i}].boot-dev" ${CLUSTER_CONFIG})
     else
       KERNEL_OPTS=${VM_KERNEL_OPTS}
       boot_dev="sda"

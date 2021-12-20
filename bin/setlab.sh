@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# export SET_LAB="true"
+
 SUB_DOMAIN=""
 INDEX=""
 CONFIG_FILE=${LAB_CONFIG_FILE}
@@ -42,3 +44,13 @@ do
 done
 
 unset array_index
+
+# if [[ ${SHELL} == "" ]] || [[ ${SHELL} == "/bin/bash" ]]
+# then
+#   SHELL=/bin/bash
+#   SH_EX="/bin/bash --norc"
+# else
+#   SH_EX="/bin/zsh --no-rcs"
+# fi
+
+# ${SH_EX}
