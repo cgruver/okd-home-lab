@@ -8,6 +8,7 @@ CONFIG_FILE=${LAB_CONFIG_FILE}
 CP_REPLICAS="3"
 SNO_BIP=""
 SNO="false"
+BIP="false"
 # This script will set up the infrastructure to deploy an OKD 4.X cluster
 # Follow the documentation at https://upstreamwithoutapaddle.com/home-lab/lab-intro/
 
@@ -82,11 +83,13 @@ EOF
 
 function createInstallConfig() {
 
+  local install_dev=${1}
+
 if [[ ${SNO} == "true" ]]
 then
 read -r -d '' SNO_BIP << EOF
 BootstrapInPlace:
-  InstallationDisk: /dev/${SNO_INSTALL_DEV}
+  InstallationDisk: /dev/${install_dev}
 EOF
 CP_REPLICAS="1"
 fi
@@ -213,7 +216,7 @@ then
   CONSOLE_OPT="console=ttyS0"
 fi
 
-if [[ ${SNO} == "true" ]]
+if [[ ${BIP} == "true" ]]
 then
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
 #!ipxe
@@ -329,7 +332,7 @@ then
   if [[ ${SNO} == "false" ]] # Create Bootstrap Node
   then
     # Create ignition files
-    createInstallConfig
+    createInstallConfig "null"
     cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/install-config.yaml
     openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create ignition-configs
     cp ${OKD_LAB_PATH}/okd-install-dir/*.ign ${OKD_LAB_PATH}/ipxe-work-dir/
@@ -389,9 +392,13 @@ then
       yq e ".control-plane.okd-hosts.[0].mac-addr = \"${mac_addr}\"" -i ${CLUSTER_CONFIG}
     fi
     # Create the ignition and iPXE boot files
-    SNO_INSTALL_DEV=$(yq e ".control-plane.okd-hosts.[0].sno-install-dev" ${CLUSTER_CONFIG})
-    boot_dev=null
-    createInstallConfig
+    install_dev=$(yq e ".control-plane.okd-hosts.[0].sno-install-dev" ${CLUSTER_CONFIG})
+    boot_dev=$(yq e ".control-plane.okd-hosts.[0].boot-dev" ${CLUSTER_CONFIG})
+    if [[ "${install_dev}" == "${boot_dev}" ]]
+    then
+      BIP="true"
+    fi
+    createInstallConfig ${install_dev}
     cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/install-config.yaml
     openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create single-node-ignition-config
     cp ${OKD_LAB_PATH}/okd-install-dir/bootstrap-in-place-for-live-iso.ign ${OKD_LAB_PATH}/ipxe-work-dir/sno.ign

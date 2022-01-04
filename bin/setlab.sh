@@ -36,6 +36,7 @@ export CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file
 export SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
 export DOMAIN_ROUTER=$(yq e ".sub-domain-configs.[${INDEX}].router-ip" ${CONFIG_FILE})
 export DOMAIN_NETWORK=$(yq e ".sub-domain-configs.[${INDEX}].network" ${CONFIG_FILE})
+export LOCAL_REGISTRY=$(yq e ".local-registry" ${OKD_LAB_PATH}/lab-config/${SUB_DOMAIN}-cluster.yaml)
 OKD_VERSION=$(yq e ".okd-version" ${CLUSTER_CONFIG})
 for i in $(ls ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION})
 do
