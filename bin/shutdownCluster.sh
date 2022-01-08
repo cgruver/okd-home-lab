@@ -45,7 +45,7 @@ fi
 LAB_DOMAIN=$(yq e ".domain" ${CONFIG_FILE})
 SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
 CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
-CLUSTER_NAME=$(yq e ".cluster-name" ${CLUSTER_CONFIG})
+CLUSTER_NAME=$(yq e ".cluster.name" ${CLUSTER_CONFIG})
 DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
 export KUBECONFIG="${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}.${DOMAIN}/kubeconfig"
 
@@ -58,9 +58,9 @@ fi
 
 if [[ $(yq e ".compute-nodes.metal" ${CLUSTER_CONFIG}) == "true" ]]
   then
-    let NODE_COUNT=$(yq e .compute-nodes.okd-hosts ${CLUSTER_CONFIG} | yq e 'length' -)
+    let NODE_COUNT=$(yq e ".compute-nodes.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
   else
-    let NODE_COUNT=$(yq e .compute-nodes.kvm-hosts ${CLUSTER_CONFIG} | yq e 'length' -)
+    let NODE_COUNT=$(yq e ".compute-nodes.kvm-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
 fi
 
 # Cordon Compute Nodes

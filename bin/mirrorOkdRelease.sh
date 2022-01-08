@@ -44,10 +44,10 @@ LAB_DOMAIN=$(yq e ".domain" ${CONFIG_FILE})
 SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
 CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
 DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
-LOCAL_REGISTRY=$(yq e ".local-registry" ${CLUSTER_CONFIG})
-OKD_REGISTRY=$(yq e ".remote-registry" ${CLUSTER_CONFIG})
-PULL_SECRET=$(yq e ".secret-file" ${CLUSTER_CONFIG})
-OKD_RELEASE=$(yq e ".okd-version" ${CLUSTER_CONFIG})
+LOCAL_REGISTRY=$(yq e ".cluster.local-registry" ${CLUSTER_CONFIG})
+OKD_REGISTRY=$(yq e ".cluster.remote-registry" ${CLUSTER_CONFIG})
+PULL_SECRET=$(yq e ".cluster.secret-file" ${CLUSTER_CONFIG})
+OKD_RELEASE=$(yq e ".cluster.release" ${CLUSTER_CONFIG})
 
 rm -rf ${OKD_LAB_PATH}/lab-config/work-dir
 mkdir -p ${OKD_LAB_PATH}/lab-config/work-dir

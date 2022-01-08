@@ -89,7 +89,7 @@ if [[ ${SNO} == "true" ]]
 then
 read -r -d '' SNO_BIP << EOF
 BootstrapInPlace:
-  InstallationDisk: /dev/${install_dev}
+  InstallationDisk: "--copynetwork /dev/${install_dev}"
 EOF
 CP_REPLICAS="1"
 fi
@@ -102,10 +102,10 @@ metadata:
 networking:
   networkType: OVNKubernetes
   clusterNetwork:
-  - cidr: 10.100.0.0/14 
+  - cidr: ${CLUSTER_CIDR}
     hostPrefix: 23 
   serviceNetwork: 
-  - 172.30.0.0/16
+  - ${SERVICE_CIDR}
 compute:
 - name: worker
   replicas: 0
@@ -292,10 +292,12 @@ NETWORK=$(yq e ".sub-domain-configs.[${INDEX}].network" ${CONFIG_FILE})
 NETMASK=$(yq e ".sub-domain-configs.[${INDEX}].netmask" ${CONFIG_FILE})
 CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
 DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
-REGISTRY=$(yq e ".proxy-registry" ${CLUSTER_CONFIG})
-CLUSTER_NAME=$(yq e ".cluster-name" ${CLUSTER_CONFIG})
-PULL_SECRET=$(yq e ".secret-file" ${CLUSTER_CONFIG})
-BUTANE_SPEC_VERSION=$(yq e ".butane-spec-version" ${CLUSTER_CONFIG})
+REGISTRY=$(yq e ".cluster.proxy-registry" ${CLUSTER_CONFIG})
+CLUSTER_NAME=$(yq e ".cluster.name" ${CLUSTER_CONFIG})
+CLUSTER_CIDR=$(yq e ".cluster.cluster-cidr" ${CLUSTER_CONFIG})
+SERVICE_CIDR=$(yq e ".cluster.service-cidr" ${CLUSTER_CONFIG})
+PULL_SECRET=$(yq e ".cluster.secret-file" ${CLUSTER_CONFIG})
+BUTANE_SPEC_VERSION=$(yq e ".cluster.butane-spec-version" ${CLUSTER_CONFIG})
 INSTALL_URL="http://${BASTION_HOST}/install"
 
 IFS=. read -r i1 i2 i3 i4 << EOF

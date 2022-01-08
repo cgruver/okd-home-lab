@@ -62,12 +62,12 @@ fi
 
 SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
 CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
-CLUSTER_NAME=$(yq e ".cluster-name" ${CLUSTER_CONFIG})
+CLUSTER_NAME=$(yq e ".cluster.name" ${CLUSTER_CONFIG})
 DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
 
 if [[ ${BOOTSTRAP} == "true" ]]
 then
-  host_name="$(yq e .cluster-name ${CLUSTER_CONFIG})-bootstrap"
+  host_name="$(yq e ".cluster.name" ${CLUSTER_CONFIG})-bootstrap"
 
   if [[ $(yq e ".bootstrap.metal" ${CLUSTER_CONFIG}) == "true" ]]
   then
@@ -80,7 +80,7 @@ then
     qemu-img create -f qcow2 ${OKD_LAB_PATH}/bootstrap/bootstrap-node.qcow2 ${root_vol}G
     qemu-system-x86_64 -accel accel=hvf -m ${memory}M -smp ${cpu} -display none -nographic -drive file=${OKD_LAB_PATH}/bootstrap/bootstrap-node.qcow2,if=none,id=disk1  -device ide-hd,bus=ide.0,drive=disk1,id=sata0-0-0,bootindex=1 -boot n -netdev vde,id=nic0,sock=/var/run/vde.bridged.${bridge_dev}.ctl -device virtio-net-pci,netdev=nic0,mac=52:54:00:a1:b2:c3
   else
-    kvm_host=$(yq e .bootstrap.kvm-host ${CLUSTER_CONFIG})
+    kvm_host=$(yq e ".bootstrap.kvm-host" ${CLUSTER_CONFIG})
     startNode ${kvm_host} ${host_name}
   fi
 fi
@@ -93,8 +93,8 @@ then
   else
     for i in 0 1 2
     do
-      kvm_host=$(yq e .control-plane.okd-hosts.[${i}].kvm-host ${CLUSTER_CONFIG})
-      host_name=$(yq e .control-plane.okd-hosts.[${i}].name ${CLUSTER_CONFIG})
+      kvm_host=$(yq e ".control-plane.okd-hosts.[${i}].kvm-host" ${CLUSTER_CONFIG})
+      host_name=$(yq e ".control-plane.okd-hosts.[${i}].name" ${CLUSTER_CONFIG})
       startNode ${kvm_host} ${host_name}
       echo "Pause for 15 seconds to stagger node start up."
       sleep 15
@@ -104,16 +104,16 @@ fi
 
 if [[ ${WORKER} == "true" ]]
 then
-  let NODE_COUNT=$(yq e .compute-nodes ${CLUSTER_CONFIG} | yq e 'length' -)
+  let NODE_COUNT=$(yq e ".compute-nodes" ${CLUSTER_CONFIG} | yq e 'length' -)
   let i=0
   while [[ i -lt ${NODE_COUNT} ]]
   do
-    host_name=$(yq e .compute-nodes.[${i}].name ${CLUSTER_CONFIG})
-    if [[ $(yq e .compute-nodes.[${i}].metal ${CLUSTER_CONFIG}) == "true" ]]
+    host_name=$(yq e ".compute-nodes.[${i}].name" ${CLUSTER_CONFIG})
+    if [[ $(yq e ".compute-nodes.[${i}].metal" ${CLUSTER_CONFIG}) == "true" ]]
     then
       echo "This script will not auto start a bare-metal node.  Please power on ${host_name} manually."
     else
-      kvm_host=$(yq e .compute-nodes.[${i}].kvm-host ${CLUSTER_CONFIG})  
+      kvm_host=$(yq e ".compute-nodes.[${i}].kvm-host" ${CLUSTER_CONFIG})  
       startNode ${kvm_host} ${host_name}
       echo "Pause for 15 seconds to stagger node start up."
       sleep 15

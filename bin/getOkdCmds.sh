@@ -50,8 +50,8 @@ then
 fi
 
 CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
-OKD_VERSION=$(yq e ".okd-version" ${CLUSTER_CONFIG})
-BUTANE_VERSION=$(yq e ".butane-version" ${CLUSTER_CONFIG})
+OKD_VERSION=$(yq e ".cluster.release" ${CLUSTER_CONFIG})
+BUTANE_VERSION=$(yq e ".cluster.butane-version" ${CLUSTER_CONFIG})
 
 mkdir -p ${OKD_LAB_PATH}/okd-cmds/${OKD_VERSION}
 mkdir -p ${OKD_LAB_PATH}/tmp

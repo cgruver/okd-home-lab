@@ -1,7 +1,6 @@
 #!/bin/bash
 
 EDGE=false
-SUB_DOMAIN=""
 INDEX=""
 CONFIG_FILE=${LAB_CONFIG_FILE}
 

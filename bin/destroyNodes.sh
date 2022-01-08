@@ -127,7 +127,7 @@ function validateAndSetVars() {
   NETWORK=$(yq e ".sub-domain-configs.[${D_INDEX}].network" ${CONFIG_FILE})
   CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${D_INDEX}].cluster-config-file" ${CONFIG_FILE})
   DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
-  CLUSTER_NAME=$(yq e ".cluster-name" ${CLUSTER_CONFIG})
+  CLUSTER_NAME=$(yq e ".cluster.name" ${CLUSTER_CONFIG})
 
   CP_COUNT=$(yq e ".control-plane.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
   if [[ ${CP_COUNT} == "1" ]]
@@ -145,7 +145,7 @@ function validateAndSetVars() {
     fi
     let i=0
     DONE=false
-    let NODE_COUNT=$(yq e .compute-nodes ${CLUSTER_CONFIG} | yq e 'length' -)
+    let NODE_COUNT=$(yq e ".compute-nodes" ${CLUSTER_CONFIG} | yq e 'length' -)
     while [[ i -lt ${NODE_COUNT} ]]
     do
       host_name=$(yq e ".compute-nodes.[${i}].name" ${CLUSTER_CONFIG})
@@ -157,12 +157,39 @@ function validateAndSetVars() {
       fi
       i=$(( ${i} + 1 ))
     done
+    if [[ ${W_HOST_INDEX} == "" ]]
+    then
+      echo "Host: ${W_HOST_NAME} not found in config file."
+      exit 1
+    fi
   fi
 
   if [[ ${DELETE_KVM_HOST} == "true" ]]
   then
-    echo "This method is not implemented yet: -k|--kvm-host"
-    exit 1
+    if [[ ${K_HOST_NAME} == "" ]]
+    then
+      echo "-w | --worker must have a value"
+      exit 1
+    fi
+    let i=0
+    DONE=false
+    let NODE_COUNT=$(yq e ".kvm-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
+    while [[ i -lt ${NODE_COUNT} ]]
+    do
+      host_name=$(yq e ".kvm-hosts.[${i}].host-name" ${CLUSTER_CONFIG})
+      if [[ ${host_name} == ${K_HOST_NAME} ]]
+      then
+        K_HOST_INDEX=${i}
+        DONE=true
+        break;
+      fi
+      i=$(( ${i} + 1 ))
+    done
+    if [[ ${K_HOST_INDEX} == "" ]]
+    then
+      echo "Host: ${K_HOST_NAME} not found in config file."
+      exit 1
+    fi
   fi
 }
 
@@ -174,12 +201,12 @@ function deleteBootstrap() {
     rm -rf ${OKD_LAB_PATH}/bootstrap
   else
     host_name="${CLUSTER_NAME}-bootstrap"
-    kvm_host=$(yq e .bootstrap.kvm-host ${CLUSTER_CONFIG})
+    kvm_host=$(yq e ".bootstrap.kvm-host" ${CLUSTER_CONFIG})
     deleteNodeVm ${host_name} ${kvm_host}
   fi
   deletePxeConfig $(yq e ".bootstrap.mac-addr" ${CLUSTER_CONFIG})
   deleteDns ${CLUSTER_NAME}-${DOMAIN}-bs
-  ${SSH} root@${ROUTER} "cp /etc/haproxy.no-bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop && /etc/init.d/haproxy start"
+  ${SSH} root@${ROUTER} "cp /etc/haproxy.no-bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop ; /etc/init.d/haproxy start"
 }
 
 function deleteWorker() {
@@ -193,7 +220,7 @@ function deleteWorker() {
     ceph_dev=$(yq e ".compute-nodes.[${index}].ceph.ceph-dev" ${CLUSTER_CONFIG})
     destroyMetal core ${host_name} ${boot_dev} ${ceph_dev}
   else
-    kvm_host=$(yq e .compute-nodes.[${index}].kvm-host ${CLUSTER_CONFIG})
+    kvm_host=$(yq e ".compute-nodes.[${index}].kvm-host" ${CLUSTER_CONFIG})
     deleteNodeVm ${host_name} ${kvm_host}
   fi
   deleteDns ${host_name}-${DOMAIN}
@@ -212,7 +239,7 @@ function deleteCluster() {
       install_dev=$(yq e ".control-plane.okd-hosts.[0].sno-install-dev" ${CLUSTER_CONFIG})
       destroyMetal core ${host_name} ${install_dev}
     else
-      kvm_host=$(yq e .control-plane.okd-hosts.[0].kvm-host ${CLUSTER_CONFIG})
+      kvm_host=$(yq e ".control-plane.okd-hosts.[0].kvm-host" ${CLUSTER_CONFIG})
       deleteNodeVm ${host_name} ${kvm_host}
     fi
     deletePxeConfig ${mac_addr}
@@ -226,7 +253,7 @@ function deleteCluster() {
         boot_dev=$(yq e ".control-plane.okd-hosts.[${i}].boot-dev" ${CLUSTER_CONFIG})
         destroyMetal core ${host_name} ${boot_dev}
       else
-        kvm_host=$(yq e .control-plane.okd-hosts.[${i}].kvm-host ${CLUSTER_CONFIG})
+        kvm_host=$(yq e ".control-plane.okd-hosts.[${i}].kvm-host" ${CLUSTER_CONFIG})
         deleteNodeVm ${host_name} ${kvm_host}
       fi
       deletePxeConfig ${mac_addr}
@@ -251,7 +278,7 @@ if [[ ${DELETE_WORKER} == "true" ]]
 then
   if [[ ${W_HOST_NAME} == "all" ]] # Delete all Nodes
   then
-    let j=$(yq e .compute-nodes ${CLUSTER_CONFIG} | yq e 'length' -)
+    let j=$(yq e ".compute-nodes" ${CLUSTER_CONFIG} | yq e 'length' -)
     let i=0
     while [[ i -lt ${j} ]]
     do
@@ -270,12 +297,17 @@ fi
 
 if [[ ${RESET_LB} == "true" ]]
 then
-  ${SSH} root@${ROUTER} "cp /etc/haproxy.bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop && /etc/init.d/haproxy start" 
+  ${SSH} root@${ROUTER} "cp /etc/haproxy.bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop ; /etc/init.d/haproxy start" 
 fi
 
 if [[ ${DELETE_KVM_HOST} == "true" ]]
 then
-  echo "-k not implemented"
+  mac_addr=$(yq e ".kvm-hosts.[${K_HOST_INDEX}].mac-addr" ${CLUSTER_CONFIG})
+  host_name=$(yq e ".kvm-hosts.[${K_HOST_INDEX}].host-name" ${CLUSTER_CONFIG})
+  boot_dev=$(yq e ".kvm-hosts.[${K_HOST_INDEX}].boot-dev" ${CLUSTER_CONFIG})
+  destroyMetal root ${host_name} ${boot_dev} na
+  deletePxeConfig ${mac_addr}
+  deleteDns ${host_name}-${DOMAIN}-kvm
 fi
 
 ${SSH} root@${ROUTER} "/etc/init.d/named stop && /etc/init.d/named start"

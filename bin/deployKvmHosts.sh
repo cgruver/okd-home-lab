@@ -4,9 +4,7 @@ SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 SCP="scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 CONFIG_FILE=${LAB_CONFIG_FILE}
 
-CREATE_DNS="false"
 HOST_NAME=""
-SUB_DOMAIN=""
 INDEX=""
 
 for i in "$@"
@@ -176,14 +174,7 @@ function buildHostConfig() {
   disk1=$(yq e ".kvm-hosts.[${index}].disks.disk1" ${CLUSTER_CONFIG})
   disk2=$(yq e ".kvm-hosts.[${index}].disks.disk2" ${CLUSTER_CONFIG})
 
-  TEST=$(dig ${hostname}.${DOMAIN} +short)
-  if [[ ${TEST} == "${ip_addr}" ]]
-  then
-    echo "DNS Record exists, skipping DNS record creation"
-  else
-    createDnsRecords ${hostname} ${ip_octet}
-    CREATE_DNS="true"
-  fi
+  createDnsRecords ${hostname} ${ip_octet}
   createBootFile ${hostname} ${mac_addr} ${ip_addr}
   createKickStartFile ${hostname} ${mac_addr} ${ip_addr} ${disk1} ${disk2}
 }
@@ -269,11 +260,10 @@ fi
 
 ${SCP} -r ${OKD_LAB_PATH}/boot-work-dir/*.ks root@${BASTION_HOST}:/usr/local/www/install/kickstart
 ${SCP} -r ${OKD_LAB_PATH}/boot-work-dir/*.ipxe root@${ROUTER}:/data/tftpboot/ipxe
-if [[ ${CREATE_DNS} == "true" ]]
-then
-  cat ${OKD_LAB_PATH}/boot-work-dir/forward.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${DOMAIN}"
-  cat ${OKD_LAB_PATH}/boot-work-dir/reverse.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}"
-  ${SSH} root@${ROUTER} "/etc/init.d/named stop && /etc/init.d/named start"
-fi
+
+cat ${OKD_LAB_PATH}/boot-work-dir/forward.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${DOMAIN}"
+cat ${OKD_LAB_PATH}/boot-work-dir/reverse.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}"
+${SSH} root@${ROUTER} "/etc/init.d/named stop && /etc/init.d/named start"
+
 
 rm -rf ${OKD_LAB_PATH}/boot-work-dir
