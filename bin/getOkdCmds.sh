@@ -13,16 +13,6 @@ case $i in
       SUB_DOMAIN="${i#*=}"
       shift
     ;;
-    -m|--mac)
-      OS_VER=mac
-      BUTANE_DLD=apple-darwin
-      shift
-    ;;
-    -l|--linux)
-      OS_VER=linux
-      BUTANE_DLD=unknown-linux-gnu
-      shift
-    ;;
     *)
           # Put usage here:
     ;;
@@ -46,6 +36,20 @@ done
 if [[ ${DONE} == "false" ]]
 then
   echo "Domain Entry Not Found In Config File."
+  exit 1
+fi
+
+SYS_ARCH=$(uname)
+if [[ ${SYS_ARCH} == "Darwin" ]]
+then
+  OS_VER=mac
+  BUTANE_DLD=apple-darwin
+elif [[ ${SYS_ARCH} == "Linux" ]]
+then
+  OS_VER=linux
+  BUTANE_DLD=unknown-linux-gnu
+else
+  echo "Unsupported OS: Cannot pull openshift commands"
   exit 1
 fi
 

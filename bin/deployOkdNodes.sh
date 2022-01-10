@@ -1,4 +1,5 @@
 #!/bin/bash
+. ${OKD_LAB_PATH}/bin/labctx.env
 
 INIT_CLUSTER=false
 ADD_WORKER=false
@@ -66,11 +67,13 @@ EOF
 }
 
 function createSnoDNS() {
+  local host_name=${1}
+
 cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/forward.zone
 *.apps.${CLUSTER_NAME}.${DOMAIN}.     IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
 api.${CLUSTER_NAME}.${DOMAIN}.        IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
 api-int.${CLUSTER_NAME}.${DOMAIN}.    IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
-${CLUSTER_NAME}-sno-0.${DOMAIN}.   IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
 etcd-0.${DOMAIN}.          IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
 _etcd-server-ssl._tcp.${CLUSTER_NAME}.${DOMAIN}    86400     IN    SRV     0    10    2380    etcd-0.${CLUSTER_NAME}.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-cp
 EOF
@@ -89,7 +92,7 @@ if [[ ${SNO} == "true" ]]
 then
 read -r -d '' SNO_BIP << EOF
 BootstrapInPlace:
-  InstallationDisk: "--copynetwork /dev/${install_dev}"
+  InstallationDisk: "--copy-network /dev/${install_dev}"
 EOF
 CP_REPLICAS="1"
 fi
@@ -216,18 +219,18 @@ then
   CONSOLE_OPT="console=ttyS0"
 fi
 
-if [[ ${BIP} == "true" ]]
-then
-cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
-#!ipxe
+# if [[ ${BIP} == "true" ]]
+# then
+# cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
+# #!ipxe
 
-kernel http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 ignition.firstboot ignition.config.url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign ignition.platform.id=${platform} initrd=initrd initrd=rootfs.img ${CONSOLE_OPT}
-initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/initrd
-initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.img
+# kernel http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 ignition.firstboot ignition.config.url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign ignition.platform.id=${platform} initrd=initrd initrd=rootfs.img ${CONSOLE_OPT}
+# initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/initrd
+# initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.img
 
-boot
-EOF
-else
+# boot
+# EOF
+# else
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
 #!ipxe
 
@@ -237,7 +240,7 @@ initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.
 
 boot
 EOF
-fi
+# fi
 
 }
 
@@ -264,6 +267,11 @@ function createOkdVmNode() {
   ${SSH} root@${kvm_host}.${DOMAIN} "virsh define /VirtualMachines/${host_name}.xml"
 }
 
+if [[ -z ${SUB_DOMAIN} ]]
+then
+  labctx
+fi
+
 DONE=false
 DOMAIN_COUNT=$(yq e ".sub-domain-configs" ${CONFIG_FILE} | yq e 'length' -)
 let i=0
@@ -284,6 +292,7 @@ then
   exit 1
 fi
 
+EDGE_ROUTER=$(yq e ".router" ${CONFIG_FILE})
 LAB_DOMAIN=$(yq e ".domain" ${CONFIG_FILE})
 BASTION_HOST=$(yq e ".bastion-ip" ${CONFIG_FILE})
 SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
@@ -331,7 +340,12 @@ then
   rm -rf ${OKD_LAB_PATH}/okd-install-dir
   mkdir ${OKD_LAB_PATH}/okd-install-dir
 
-  if [[ ${SNO} == "false" ]] # Create Bootstrap Node
+  if [[ $(yq e ". | has(\"bootstrap\")" ${CLUSTER_CONFIG}) == "false" ]]
+  then
+    BIP="true"
+  fi
+
+  if [[ ${BIP} == "false" ]] # Create Bootstrap Node
   then
     # Create ignition files
     createInstallConfig "null"
@@ -377,7 +391,7 @@ then
   then
     NODE_IP=$(yq e ".control-plane.okd-hosts.[0].ip-octet" ${CLUSTER_CONFIG})
     ip_addr=${NET_PREFIX}.${NODE_IP}
-    host_name=${CLUSTER_NAME}-sno-0
+    host_name=${CLUSTER_NAME}-node
     if [[ ${metal} == "true" ]]
     then
       mac_addr=$(yq e ".control-plane.okd-hosts.[0].mac-addr" ${CLUSTER_CONFIG})
@@ -396,10 +410,6 @@ then
     # Create the ignition and iPXE boot files
     install_dev=$(yq e ".control-plane.okd-hosts.[0].sno-install-dev" ${CLUSTER_CONFIG})
     boot_dev=$(yq e ".control-plane.okd-hosts.[0].boot-dev" ${CLUSTER_CONFIG})
-    if [[ "${install_dev}" == "${boot_dev}" ]]
-    then
-      BIP="true"
-    fi
     createInstallConfig ${install_dev}
     cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/install-config.yaml
     openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create single-node-ignition-config
@@ -409,7 +419,7 @@ then
     # Set the node values in the lab domain configuration file
     yq e ".control-plane.okd-hosts.[0].name = \"${host_name}\"" -i ${CLUSTER_CONFIG}
     yq e ".control-plane.okd-hosts.[0].ip-addr = \"${ip_addr}\"" -i ${CLUSTER_CONFIG}
-    createSnoDNS
+    createSnoDNS ${host_name}
   else  
     for i in 0 1 2
     do
@@ -511,7 +521,8 @@ fi
 
 cat ${OKD_LAB_PATH}/dns-work-dir/forward.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${DOMAIN}"
 cat ${OKD_LAB_PATH}/dns-work-dir/reverse.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}"
-${SSH} root@${ROUTER} "/etc/init.d/named stop && /etc/init.d/named start"
+${SSH} root@${ROUTER} "/etc/init.d/named stop && sleep 2 && /etc/init.d/named start && sleep 2"
+${SSH} root@${EDGE_ROUTER} "/etc/init.d/named stop && sleep 2 && /etc/init.d/named start"
 ${SSH} root@${BASTION_HOST} "mkdir -p /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}"
 ${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/ignition/*.ign root@${BASTION_HOST}:/usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/
 ${SSH} root@${BASTION_HOST} "chmod 644 /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/*"

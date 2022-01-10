@@ -1,4 +1,7 @@
 #!/bin/bash
+. ${OKD_LAB_PATH}/bin/labctx.env
+
+set -x
 
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 RESET_LB=false
@@ -100,6 +103,10 @@ function deleteDns() {
 
 # Validate options and set vars
 function validateAndSetVars() {
+  if [[ -z ${SUB_DOMAIN} ]]
+  then
+    labctx
+  fi
   DONE=false
   DOMAIN_COUNT=$(yq e ".sub-domain-configs" ${CONFIG_FILE} | yq e 'length' -)
   let i=0
@@ -120,6 +127,7 @@ function validateAndSetVars() {
     exit 1
   fi
 
+  EDGE_ROUTER=$(yq e ".router" ${CONFIG_FILE})
   LAB_DOMAIN=$(yq e ".domain" ${CONFIG_FILE})
   BASTION_HOST=$(yq e ".bastion-ip" ${CONFIG_FILE})
   SUB_DOMAIN=$(yq e ".sub-domain-configs.[${D_INDEX}].name" ${CONFIG_FILE})
@@ -310,4 +318,5 @@ then
   deleteDns ${host_name}-${DOMAIN}-kvm
 fi
 
-${SSH} root@${ROUTER} "/etc/init.d/named stop && /etc/init.d/named start"
+${SSH} root@${ROUTER} "/etc/init.d/named stop && sleep 2 && /etc/init.d/named start && sleep 2"
+${SSH} root@${EDGE_ROUTER} "/etc/init.d/named stop && sleep 2 && /etc/init.d/named start"

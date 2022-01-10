@@ -1,4 +1,5 @@
 #!/bin/bash
+. ${OKD_LAB_PATH}/bin/labctx.env
 
 WLAN="false"
 WWAN="false"
@@ -137,7 +138,7 @@ function createDomainFIles() {
 cat << EOF > ${WORK_DIR}/edge-zone
 zone "${DOMAIN}" {
     type stub;
-    masters { ${ROUTER}; };
+    masters { ${ROUTER_IP}; };
     file "stub.${DOMAIN}";
 };
 
@@ -149,10 +150,10 @@ set dropbear.@dropbear[0].RootPasswordAuth='off'
 set network.wan.proto='static'
 set network.wan.ipaddr=${EDGE_IP}
 set network.wan.netmask=${NETMASK}
-set network.wan.gateway=${EDGE_ROUTER}
+set network.wan.gateway=${GATEWAY}
 set network.wan.hostname=router.${DOMAIN}
-set network.wan.dns=${EDGE_ROUTER}
-set network.lan.ipaddr=${ROUTER}
+set network.wan.dns=${GATEWAY}
+set network.lan.ipaddr=${ROUTER_IP}
 set network.lan.netmask=${NETMASK}
 set network.lan.hostname=router.${DOMAIN}
 delete network.guest
@@ -220,9 +221,9 @@ function validateVars() {
     fi
     SUB_DOMAIN=${sub_domain}
   fi
-  if [[ ${SUB_DOMAIN} == "" ]]
+  if [[ -z "${SUB_DOMAIN}" ]]
   then
-    . labctx.sh
+    labctx
   fi
 }
 
@@ -241,22 +242,23 @@ then
   createEdgeFIles
 else
   DOMAIN=${SUB_DOMAIN}.${LAB_DOMAIN}
+  GATEWAY=$(yq e ".router" ${CONFIG_FILE})
   ROUTER_IP=$(yq e ".sub-domain-configs.[${INDEX}].router-ip" ${CONFIG_FILE})
   NETWORK=$(yq e ".sub-domain-configs.[${INDEX}].network" ${CONFIG_FILE})
   EDGE_IP=$(yq e ".sub-domain-configs.[${INDEX}].router-edge-ip" ${CONFIG_FILE})
   NETMASK=$(yq e ".sub-domain-configs.[${INDEX}].netmask" ${CONFIG_FILE})
   createDomainFIles
   ${SSH} root@${INIT_IP} "ENTRY=\$(uci add firewall forwarding) ; uci set firewall.\${ENTRY}.src=wan ; uci set firewall.\${ENTRY}.dest=lan ; uci commit firewall"
-  ssh root@router.${LAB_DOMAIN} "unset ROUTE ; ROUTE=\$(uci add network route) ; uci set network.\${ROUTE}.interface=lan ; uci set network.\${ROUTE}.target=${NETWORK} ; uci set network.\${ROUTE}.netmask=${NETMASK} ; uci set network.\${ROUTE}.gateway=${EDGE_IP} ; uci commit network"
-  cat ${OKD_LAB_PATH}/work-dir/edge-zone | ssh root@router.${LAB_DOMAIN} "cat >> /etc/bind/named.conf"
-  ssh root@router.${LAB_DOMAIN} "/etc/init.d/network restart"
-  ssh root@router.${LAB_DOMAIN} "/etc/init.d/named stop && /etc/init.d/named start"
+  ${SSH} root@router.${LAB_DOMAIN} "unset ROUTE ; ROUTE=\$(uci add network route) ; uci set network.\${ROUTE}.interface=lan ; uci set network.\${ROUTE}.target=${NETWORK} ; uci set network.\${ROUTE}.netmask=${NETMASK} ; uci set network.\${ROUTE}.gateway=${EDGE_IP} ; uci commit network"
+  cat ${OKD_LAB_PATH}/work-dir/edge-zone | ${SSH} root@router.${LAB_DOMAIN} "cat >> /etc/bind/named.conf"
+  ${SSH} root@router.${LAB_DOMAIN} "/etc/init.d/network reload"
+  ${SSH} root@router.${LAB_DOMAIN} "/etc/init.d/named stop && /etc/init.d/named start"
 fi
-
+echo "Generating SSH keys"
 ${SSH} root@${INIT_IP} "rm -rf /root/.ssh ; rm -rf /data/* ; mkdir -p /root/.ssh ; dropbearkey -t rsa -s 4096 -f /root/.ssh/id_dropbear"
+echo "Copying workstation SSH key to router"
 cat ~/.ssh/id_rsa.pub | ${SSH} root@${INIT_IP} "cat >> /etc/dropbear/authorized_keys"
-${SCP} ${OKD_LAB_PATH}/utils/${utilDir}/init-router.sh root@${INIT_IP}:/tmp
-${SSH} root@${INIT_IP} "chmod 700 /tmp/init-router.sh && . ~/.profile ; /tmp/init-router.sh"
-${SCP} ${WORK_DIR}/uci.batch root@${ROUTER}:/tmp/uci.batch
-${SSH} root@${INIT_IP} "uci batch << /tmp/uci.batch && passwd -l root && poweroff"
+echo "Applying UCI config"
+${SCP} ${WORK_DIR}/uci.batch root@${INIT_IP}:/tmp/uci.batch
+${SSH} root@${INIT_IP} "cat /tmp/uci.batch | uci batch && passwd -l root && poweroff"
 
