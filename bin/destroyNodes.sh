@@ -1,8 +1,6 @@
 #!/bin/bash
 . ${OKD_LAB_PATH}/bin/labctx.env
 
-set -x
-
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 RESET_LB=false
 DELETE_BOOTSTRAP=false
@@ -214,7 +212,10 @@ function deleteBootstrap() {
   fi
   deletePxeConfig $(yq e ".bootstrap.mac-addr" ${CLUSTER_CONFIG})
   deleteDns ${CLUSTER_NAME}-${DOMAIN}-bs
-  ${SSH} root@${ROUTER} "cp /etc/haproxy.no-bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop ; /etc/init.d/haproxy start"
+  if [[ ${SNO} == "false" ]]
+  then
+    ${SSH} root@${ROUTER} "cp /etc/haproxy.no-bootstrap /etc/haproxy.cfg && /etc/init.d/haproxy stop ; /etc/init.d/haproxy start"
+  fi
 }
 
 function deleteWorker() {

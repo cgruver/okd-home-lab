@@ -66,20 +66,43 @@ EOF
 
 }
 
-function createSnoDNS() {
+
+function createSnoBipDNS() {
   local host_name=${1}
 
 cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/forward.zone
-*.apps.${CLUSTER_NAME}.${DOMAIN}.     IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
-api.${CLUSTER_NAME}.${DOMAIN}.        IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
-api-int.${CLUSTER_NAME}.${DOMAIN}.    IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
-${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
-etcd-0.${DOMAIN}.          IN      A      ${NET_PREFIX}.${NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+*.apps.${CLUSTER_NAME}.${DOMAIN}.     IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+api.${CLUSTER_NAME}.${DOMAIN}.        IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+api-int.${CLUSTER_NAME}.${DOMAIN}.    IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+etcd-0.${DOMAIN}.          IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
 _etcd-server-ssl._tcp.${CLUSTER_NAME}.${DOMAIN}    86400     IN    SRV     0    10    2380    etcd-0.${CLUSTER_NAME}.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-cp
 EOF
 
 cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
-${NODE_IP}    IN      PTR     ${CLUSTER_NAME}-sno-0.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
+${SNO_NODE_IP}    IN      PTR     ${host_name}.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
+EOF
+
+}
+
+function createSnoDNS() {
+  local host_name=${1}
+
+cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+${CLUSTER_NAME}-bootstrap.${DOMAIN}.  IN      A      ${NET_PREFIX}.49 ; ${CLUSTER_NAME}-${DOMAIN}-bs
+*.apps.${CLUSTER_NAME}.${DOMAIN}.     IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+api.${CLUSTER_NAME}.${DOMAIN}.        IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+api.${CLUSTER_NAME}.${DOMAIN}.        IN      A      ${NET_PREFIX}.49 ; ${CLUSTER_NAME}-${DOMAIN}-bs
+api-int.${CLUSTER_NAME}.${DOMAIN}.    IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+api-int.${CLUSTER_NAME}.${DOMAIN}.    IN      A      ${NET_PREFIX}.49 ; ${CLUSTER_NAME}-${DOMAIN}-bs
+${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+etcd-0.${DOMAIN}.          IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
+_etcd-server-ssl._tcp.${CLUSTER_NAME}.${DOMAIN}    86400     IN    SRV     0    10    2380    etcd-0.${CLUSTER_NAME}.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-cp
+EOF
+
+cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+${SNO_NODE_IP}    IN      PTR     ${host_name}.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
+49    IN      PTR     ${CLUSTER_NAME}-bootstrap.${DOMAIN}.   ; ${CLUSTER_NAME}-${DOMAIN}-bs
 EOF
 
 }
@@ -88,13 +111,12 @@ function createInstallConfig() {
 
   local install_dev=${1}
 
-if [[ ${SNO} == "true" ]]
+if [[ ${BIP} == "true" ]]
 then
 read -r -d '' SNO_BIP << EOF
 BootstrapInPlace:
   InstallationDisk: "--copy-network /dev/${install_dev}"
 EOF
-CP_REPLICAS="1"
 fi
 
 cat << EOF > ${OKD_LAB_PATH}/install-config-upi.yaml
@@ -224,9 +246,9 @@ fi
 # cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
 # #!ipxe
 
-# kernel http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 ignition.firstboot ignition.config.url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign ignition.platform.id=${platform} initrd=initrd initrd=rootfs.img ${CONSOLE_OPT}
-# initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/initrd
-# initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.img
+# kernel http://${BASTION_HOST}/install/fcos/${OKD_VERSION}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 ignition.firstboot ignition.config.url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign ignition.platform.id=${platform} initrd=initrd initrd=rootfs.img ${CONSOLE_OPT}
+# initrd http://${BASTION_HOST}/install/fcos/${OKD_VERSION}/initrd
+# initrd http://${BASTION_HOST}/install/fcos/${OKD_VERSION}/rootfs.img
 
 # boot
 # EOF
@@ -234,9 +256,9 @@ fi
 cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
 #!ipxe
 
-kernel http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst.install_dev=/dev/${boot_dev} coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign coreos.inst.platform_id=${platform} initrd=initrd initrd=rootfs.img ${CONSOLE_OPT}
-initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/initrd
-initrd http://${BASTION_HOST}/install/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.img
+kernel http://${BASTION_HOST}/install/fcos/${OKD_VERSION}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst.install_dev=/dev/${boot_dev} coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign coreos.inst.platform_id=${platform} initrd=initrd initrd=rootfs.img ${CONSOLE_OPT}
+initrd http://${BASTION_HOST}/install/fcos/${OKD_VERSION}/initrd
+initrd http://${BASTION_HOST}/install/fcos/${OKD_VERSION}/rootfs.img
 
 boot
 EOF
@@ -307,6 +329,7 @@ CLUSTER_CIDR=$(yq e ".cluster.cluster-cidr" ${CLUSTER_CONFIG})
 SERVICE_CIDR=$(yq e ".cluster.service-cidr" ${CLUSTER_CONFIG})
 PULL_SECRET=$(yq e ".cluster.secret-file" ${CLUSTER_CONFIG})
 BUTANE_SPEC_VERSION=$(yq e ".cluster.butane-spec-version" ${CLUSTER_CONFIG})
+OKD_VERSION=$(yq e ".cluster.release" ${CLUSTER_CONFIG})
 INSTALL_URL="http://${BASTION_HOST}/install"
 
 IFS=. read -r i1 i2 i3 i4 << EOF
@@ -318,19 +341,24 @@ NET_PREFIX_ARPA=${i3}.${i2}.${i1}
 rm -rf ${OKD_LAB_PATH}/ipxe-work-dir
 rm -rf ${OKD_LAB_PATH}/dns-work-dir
 mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir/ignition
-mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}
+
 mkdir -p ${OKD_LAB_PATH}/dns-work-dir
 
 if [[ ${INIT_CLUSTER} == "true" ]]
 then
+  if [[ -d ${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN} ]]
+  then
+    rm -rf ${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}
+  fi
+  mkdir -p ${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}
   SSH_KEY=$(cat ${OKD_LAB_PATH}/id_rsa.pub)
   PULL_SECRET=$(cat ${OKD_LAB_PATH}/pull_secret.json)
   NEXUS_CERT=$(openssl s_client -showcerts -connect ${REGISTRY} </dev/null 2>/dev/null|openssl x509 -outform PEM | while read line; do echo "  ${line}"; done)
-  CP_COUNT=$(yq e ".control-plane.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
-  if [[ ${CP_COUNT} == "1" ]]
+  CP_REPLICAS=$(yq e ".control-plane.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
+  if [[ ${CP_REPLICAS} == "1" ]]
   then
     SNO="true"
-  elif [[ ${CP_COUNT} != "3" ]]
+  elif [[ ${CP_REPLICAS} != "3" ]]
   then
     echo "There must be 3 host entries for the control plane for a full cluster, or 1 entry for a Single Node cluster."
     exit 1
@@ -389,8 +417,8 @@ then
 
   if [[ ${SNO} == "true" ]]
   then
-    NODE_IP=$(yq e ".control-plane.okd-hosts.[0].ip-octet" ${CLUSTER_CONFIG})
-    ip_addr=${NET_PREFIX}.${NODE_IP}
+    SNO_NODE_IP=$(yq e ".control-plane.okd-hosts.[0].ip-octet" ${CLUSTER_CONFIG})
+    ip_addr=${NET_PREFIX}.${SNO_NODE_IP}
     host_name=${CLUSTER_NAME}-node
     if [[ ${metal} == "true" ]]
     then
@@ -410,16 +438,22 @@ then
     # Create the ignition and iPXE boot files
     install_dev=$(yq e ".control-plane.okd-hosts.[0].sno-install-dev" ${CLUSTER_CONFIG})
     boot_dev=$(yq e ".control-plane.okd-hosts.[0].boot-dev" ${CLUSTER_CONFIG})
-    createInstallConfig ${install_dev}
-    cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/install-config.yaml
-    openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create single-node-ignition-config
-    cp ${OKD_LAB_PATH}/okd-install-dir/bootstrap-in-place-for-live-iso.ign ${OKD_LAB_PATH}/ipxe-work-dir/sno.ign
-    configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} sno
+    if [[ ${BIP} == "true" ]]
+    then
+      createInstallConfig ${install_dev}
+      cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/install-config.yaml
+      openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create single-node-ignition-config
+      cp ${OKD_LAB_PATH}/okd-install-dir/bootstrap-in-place-for-live-iso.ign ${OKD_LAB_PATH}/ipxe-work-dir/sno.ign
+      configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} sno
+      createSnoBipDNS ${host_name}
+    else
+      configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} master
+      createSnoDNS ${host_name} ${NET_PREFIX}.49
+    fi
     createPxeFile ${mac_addr} ${platform} ${boot_dev}
     # Set the node values in the lab domain configuration file
     yq e ".control-plane.okd-hosts.[0].name = \"${host_name}\"" -i ${CLUSTER_CONFIG}
     yq e ".control-plane.okd-hosts.[0].ip-addr = \"${ip_addr}\"" -i ${CLUSTER_CONFIG}
-    createSnoDNS ${host_name}
   else  
     for i in 0 1 2
     do
@@ -453,15 +487,21 @@ then
     createControlPlaneDNS
   fi
 
-  KERNEL_URL=$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.metal.formats.pxe.kernel.location')
-  INITRD_URL=$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.metal.formats.pxe.initramfs.location')
-  ROOTFS_URL=$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.metal.formats.pxe.rootfs.location')
+  if [[ ! -d ${OKD_LAB_PATH}/lab-config/fcos/${OKD_VERSION} ]]
+  then
+    mkdir -p ${OKD_LAB_PATH}/lab-config/fcos/${OKD_VERSION}
+    KERNEL_URL=$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.metal.formats.pxe.kernel.location')
+    INITRD_URL=$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.metal.formats.pxe.initramfs.location')
+    ROOTFS_URL=$(openshift-install coreos print-stream-json | jq -r '.architectures.x86_64.artifacts.metal.formats.pxe.rootfs.location')
 
-  curl -o ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/vmlinuz ${KERNEL_URL}
-  curl -o ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/initrd ${INITRD_URL}
-  curl -o ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN}/rootfs.img ${ROOTFS_URL}
+    curl -o ${OKD_LAB_PATH}/lab-config/fcos/${OKD_VERSION}/vmlinuz ${KERNEL_URL}
+    curl -o ${OKD_LAB_PATH}/lab-config/fcos/${OKD_VERSION}/initrd ${INITRD_URL}
+    curl -o ${OKD_LAB_PATH}/lab-config/fcos/${OKD_VERSION}/rootfs.img ${ROOTFS_URL}
+  fi
 
-  ${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/fcos/${CLUSTER_NAME}-${SUB_DOMAIN} root@${BASTION_HOST}:/usr/local/www/install/fcos/
+  ${SCP} -r ${OKD_LAB_PATH}/lab-config/fcos/${OKD_VERSION} root@${BASTION_HOST}:/usr/local/www/install/fcos/
+  cp ${OKD_LAB_PATH}/okd-install-dir/auth/kubeconfig ${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}/
+  chmod 400 ${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}/kubeconfig
 fi
 
 if [[ ${ADD_WORKER} == "true" ]]

@@ -1,4 +1,7 @@
 #!/bin/bash
+
+. ${OKD_LAB_PATH}/bin/labctx.env
+
 SSH="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 BOOTSTRAP=false
 MASTER=false
@@ -39,6 +42,11 @@ function startNode() {
   local host_name=${2}
   ${SSH} root@${kvm_host}.${DOMAIN} "virsh start ${host_name}"
 }
+
+if [[ -z ${SUB_DOMAIN} ]]
+then
+  labctx
+fi
 
 DONE=false
 DOMAIN_COUNT=$(yq e ".sub-domain-configs" ${CONFIG_FILE} | yq e 'length' -)
