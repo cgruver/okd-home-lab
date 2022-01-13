@@ -39,7 +39,7 @@ do
 done
 
 function createControlPlaneDNS() {
-cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+cat << EOF > ${WORK_DIR}/dns-work-dir/forward.zone
 ${CLUSTER_NAME}-bootstrap.${DOMAIN}.  IN      A      ${NET_PREFIX}.49 ; ${CLUSTER_NAME}-${DOMAIN}-bs
 ${CLUSTER_NAME}-lb01.${DOMAIN}.       IN      A      ${NET_PREFIX}.2 ; ${CLUSTER_NAME}-${DOMAIN}-cp
 *.apps.${CLUSTER_NAME}.${DOMAIN}.     IN      A      ${NET_PREFIX}.2 ; ${CLUSTER_NAME}-${DOMAIN}-cp
@@ -56,7 +56,7 @@ _etcd-server-ssl._tcp.${CLUSTER_NAME}.${DOMAIN}    86400     IN    SRV     0    
 _etcd-server-ssl._tcp.${CLUSTER_NAME}.${DOMAIN}    86400     IN    SRV     0    10    2380    etcd-2.${CLUSTER_NAME}.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-cp
 EOF
 
-cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+cat << EOF > ${WORK_DIR}/dns-work-dir/reverse.zone
 2     IN      PTR     ${CLUSTER_NAME}-lb01.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-cp
 49    IN      PTR     ${CLUSTER_NAME}-bootstrap.${DOMAIN}.   ; ${CLUSTER_NAME}-${DOMAIN}-bs
 60    IN      PTR     ${CLUSTER_NAME}-master-0.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
@@ -70,7 +70,7 @@ EOF
 function createSnoBipDNS() {
   local host_name=${1}
 
-cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+cat << EOF > ${WORK_DIR}/dns-work-dir/forward.zone
 *.apps.${CLUSTER_NAME}.${DOMAIN}.     IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
 api.${CLUSTER_NAME}.${DOMAIN}.        IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
 api-int.${CLUSTER_NAME}.${DOMAIN}.    IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
@@ -79,7 +79,7 @@ etcd-0.${DOMAIN}.          IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUST
 _etcd-server-ssl._tcp.${CLUSTER_NAME}.${DOMAIN}    86400     IN    SRV     0    10    2380    etcd-0.${CLUSTER_NAME}.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-cp
 EOF
 
-cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+cat << EOF > ${WORK_DIR}/dns-work-dir/reverse.zone
 ${SNO_NODE_IP}    IN      PTR     ${host_name}.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
 EOF
 
@@ -88,7 +88,7 @@ EOF
 function createSnoDNS() {
   local host_name=${1}
 
-cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/forward.zone
+cat << EOF > ${WORK_DIR}/dns-work-dir/forward.zone
 ${CLUSTER_NAME}-bootstrap.${DOMAIN}.  IN      A      ${NET_PREFIX}.49 ; ${CLUSTER_NAME}-${DOMAIN}-bs
 *.apps.${CLUSTER_NAME}.${DOMAIN}.     IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
 api.${CLUSTER_NAME}.${DOMAIN}.        IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUSTER_NAME}-${DOMAIN}-cp
@@ -100,7 +100,7 @@ etcd-0.${DOMAIN}.          IN      A      ${NET_PREFIX}.${SNO_NODE_IP} ; ${CLUST
 _etcd-server-ssl._tcp.${CLUSTER_NAME}.${DOMAIN}    86400     IN    SRV     0    10    2380    etcd-0.${CLUSTER_NAME}.${DOMAIN}. ; ${CLUSTER_NAME}-${DOMAIN}-cp
 EOF
 
-cat << EOF > ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+cat << EOF > ${WORK_DIR}/dns-work-dir/reverse.zone
 ${SNO_NODE_IP}    IN      PTR     ${host_name}.${DOMAIN}.  ; ${CLUSTER_NAME}-${DOMAIN}-cp
 49    IN      PTR     ${CLUSTER_NAME}-bootstrap.${DOMAIN}.   ; ${CLUSTER_NAME}-${DOMAIN}-bs
 EOF
@@ -119,7 +119,7 @@ BootstrapInPlace:
 EOF
 fi
 
-cat << EOF > ${OKD_LAB_PATH}/install-config-upi.yaml
+cat << EOF > ${WORK_DIR}/install-config-upi.yaml
 apiVersion: v1
 baseDomain: ${DOMAIN}
 metadata:
@@ -161,7 +161,7 @@ function configOkdNode() {
   local mac=${3}
   local role=${4}
 
-cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${mac//:/-}.yml
+cat << EOF > ${WORK_DIR}/ipxe-work-dir/ignition/${mac//:/-}.yml
 variant: fcos
 version: ${BUTANE_SPEC_VERSION}
 ignition:
@@ -227,7 +227,7 @@ storage:
           logdir /var/log/chrony
 EOF
 
-cat ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${mac//:/-}.yml | butane -d ${OKD_LAB_PATH}/ipxe-work-dir/ -o ${OKD_LAB_PATH}/ipxe-work-dir/ignition/${mac//:/-}.ign
+cat ${WORK_DIR}/ipxe-work-dir/ignition/${mac//:/-}.yml | butane -d ${WORK_DIR}/ipxe-work-dir/ -o ${WORK_DIR}/ipxe-work-dir/ignition/${mac//:/-}.ign
 
 }
 
@@ -243,7 +243,7 @@ fi
 
 # if [[ ${BIP} == "true" ]]
 # then
-# cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
+# cat << EOF > ${WORK_DIR}/ipxe-work-dir/${mac//:/-}.ipxe
 # #!ipxe
 
 # kernel http://${BASTION_HOST}/install/fcos/${OKD_VERSION}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 ignition.firstboot ignition.config.url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign ignition.platform.id=${platform} initrd=initrd initrd=rootfs.img ${CONSOLE_OPT}
@@ -253,7 +253,7 @@ fi
 # boot
 # EOF
 # else
-cat << EOF > ${OKD_LAB_PATH}/ipxe-work-dir/${mac//:/-}.ipxe
+cat << EOF > ${WORK_DIR}/ipxe-work-dir/${mac//:/-}.ipxe
 #!ipxe
 
 kernel http://${BASTION_HOST}/install/fcos/${OKD_VERSION}/vmlinuz edd=off net.ifnames=1 rd.neednet=1 coreos.inst.install_dev=/dev/${boot_dev} coreos.inst.ignition_url=http://${BASTION_HOST}/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/${mac//:/-}.ign coreos.inst.platform_id=${platform} initrd=initrd initrd=rootfs.img ${CONSOLE_OPT}
@@ -327,10 +327,11 @@ REGISTRY=$(yq e ".cluster.proxy-registry" ${CLUSTER_CONFIG})
 CLUSTER_NAME=$(yq e ".cluster.name" ${CLUSTER_CONFIG})
 CLUSTER_CIDR=$(yq e ".cluster.cluster-cidr" ${CLUSTER_CONFIG})
 SERVICE_CIDR=$(yq e ".cluster.service-cidr" ${CLUSTER_CONFIG})
-PULL_SECRET=$(yq e ".cluster.secret-file" ${CLUSTER_CONFIG})
 BUTANE_SPEC_VERSION=$(yq e ".cluster.butane-spec-version" ${CLUSTER_CONFIG})
 OKD_VERSION=$(yq e ".cluster.release" ${CLUSTER_CONFIG})
 INSTALL_URL="http://${BASTION_HOST}/install"
+PULL_SECRET_FILE=$(yq e ".cluster.secret-file" ${CLUSTER_CONFIG})
+PULL_SECRET=$(cat ${PULL_SECRET_FILE})
 
 IFS=. read -r i1 i2 i3 i4 << EOF
 ${NETWORK}
@@ -338,11 +339,13 @@ EOF
 NET_PREFIX=${i1}.${i2}.${i3}
 NET_PREFIX_ARPA=${i3}.${i2}.${i1}
 
-rm -rf ${OKD_LAB_PATH}/ipxe-work-dir
-rm -rf ${OKD_LAB_PATH}/dns-work-dir
-mkdir -p ${OKD_LAB_PATH}/ipxe-work-dir/ignition
+WORK_DIR=${OKD_LAB_PATH}/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}
+mkdir -p ${WORK_DIR}
+rm -rf ${WORK_DIR}/ipxe-work-dir
+rm -rf ${WORK_DIR}/dns-work-dir
+mkdir -p ${WORK_DIR}/ipxe-work-dir/ignition
 
-mkdir -p ${OKD_LAB_PATH}/dns-work-dir
+mkdir -p ${WORK_DIR}/dns-work-dir
 
 if [[ ${INIT_CLUSTER} == "true" ]]
 then
@@ -352,7 +355,6 @@ then
   fi
   mkdir -p ${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}
   SSH_KEY=$(cat ${OKD_LAB_PATH}/id_rsa.pub)
-  PULL_SECRET=$(cat ${OKD_LAB_PATH}/pull_secret.json)
   NEXUS_CERT=$(openssl s_client -showcerts -connect ${REGISTRY} </dev/null 2>/dev/null|openssl x509 -outform PEM | while read line; do echo "  ${line}"; done)
   CP_REPLICAS=$(yq e ".control-plane.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
   if [[ ${CP_REPLICAS} == "1" ]]
@@ -365,8 +367,8 @@ then
   fi
 
   # Create and deploy ignition files single-node-ignition-config
-  rm -rf ${OKD_LAB_PATH}/okd-install-dir
-  mkdir ${OKD_LAB_PATH}/okd-install-dir
+  rm -rf ${WORK_DIR}/okd-install-dir
+  mkdir ${WORK_DIR}/okd-install-dir
 
   if [[ $(yq e ". | has(\"bootstrap\")" ${CLUSTER_CONFIG}) == "false" ]]
   then
@@ -377,9 +379,9 @@ then
   then
     # Create ignition files
     createInstallConfig "null"
-    cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/install-config.yaml
-    openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create ignition-configs
-    cp ${OKD_LAB_PATH}/okd-install-dir/*.ign ${OKD_LAB_PATH}/ipxe-work-dir/
+    cp ${WORK_DIR}/install-config-upi.yaml ${WORK_DIR}/okd-install-dir/install-config.yaml
+    openshift-install --dir=${WORK_DIR}/okd-install-dir create ignition-configs
+    cp ${WORK_DIR}/okd-install-dir/*.ign ${WORK_DIR}/ipxe-work-dir/
     # Create Bootstrap Node:
     host_name=${CLUSTER_NAME}-bootstrap
     ip_addr=${NET_PREFIX}.49
@@ -388,8 +390,6 @@ then
     if [[ $(yq e ".bootstrap.metal" ${CLUSTER_CONFIG}) == "true" ]]
     then
       mac_addr=$(yq e ".bootstrap.mac-addr" ${CLUSTER_CONFIG})
-      mkdir -p ${OKD_LAB_PATH}/bootstrap
-      qemu-img create -f qcow2 ${OKD_LAB_PATH}/bootstrap/bootstrap-node.qcow2 50G
     else
       kvm_host=$(yq e ".bootstrap.kvm-host" ${CLUSTER_CONFIG})
       memory=$(yq e ".bootstrap.node-spec.memory" ${CLUSTER_CONFIG})
@@ -441,9 +441,9 @@ then
     if [[ ${BIP} == "true" ]]
     then
       createInstallConfig ${install_dev}
-      cp ${OKD_LAB_PATH}/install-config-upi.yaml ${OKD_LAB_PATH}/okd-install-dir/install-config.yaml
-      openshift-install --dir=${OKD_LAB_PATH}/okd-install-dir create single-node-ignition-config
-      cp ${OKD_LAB_PATH}/okd-install-dir/bootstrap-in-place-for-live-iso.ign ${OKD_LAB_PATH}/ipxe-work-dir/sno.ign
+      cp ${WORK_DIR}/install-config-upi.yaml ${WORK_DIR}/okd-install-dir/install-config.yaml
+      openshift-install --dir=${WORK_DIR}/okd-install-dir create single-node-ignition-config
+      cp ${WORK_DIR}/okd-install-dir/bootstrap-in-place-for-live-iso.ign ${WORK_DIR}/ipxe-work-dir/sno.ign
       configOkdNode ${ip_addr} ${host_name}.${DOMAIN} ${mac_addr} sno
       createSnoBipDNS ${host_name}
     else
@@ -500,7 +500,7 @@ then
   fi
 
   ${SCP} -r ${OKD_LAB_PATH}/lab-config/fcos/${OKD_VERSION} root@${BASTION_HOST}:/usr/local/www/install/fcos/
-  cp ${OKD_LAB_PATH}/okd-install-dir/auth/kubeconfig ${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}/
+  cp ${WORK_DIR}/okd-install-dir/auth/kubeconfig ${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}/
   chmod 400 ${OKD_LAB_PATH}/lab-config/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}/kubeconfig
 fi
 
@@ -515,7 +515,7 @@ then
       echo "ERROR: Invalid kube_config: ${KUBECONFIG}"
       exit 1
     fi
-    oc extract -n openshift-machine-api secret/worker-user-data --keys=userData --to=- > ${OKD_LAB_PATH}/ipxe-work-dir/worker.ign
+    oc extract -n openshift-machine-api secret/worker-user-data --keys=userData --to=- > ${WORK_DIR}/ipxe-work-dir/worker.ign
   fi
   let NODE_COUNT=$(yq e ".compute-nodes" ${CLUSTER_CONFIG} | yq e 'length' -)
   let i=0
@@ -551,19 +551,19 @@ then
     yq e ".compute-nodes.[${i}].name = \"${host_name}\"" -i ${CLUSTER_CONFIG}
     yq e ".compute-nodes.[${i}].ip-addr = \"${ip_addr}\"" -i ${CLUSTER_CONFIG}
     # Create DNS entries
-    echo "${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/forward.zone
-    echo "${j}    IN      PTR     ${host_name}.${DOMAIN}. ; ${host_name}-${DOMAIN}-wk" >> ${OKD_LAB_PATH}/dns-work-dir/reverse.zone
+    echo "${host_name}.${DOMAIN}.   IN      A      ${NET_PREFIX}.${j} ; ${host_name}-${DOMAIN}-wk" >> ${WORK_DIR}/dns-work-dir/forward.zone
+    echo "${j}    IN      PTR     ${host_name}.${DOMAIN}. ; ${host_name}-${DOMAIN}-wk" >> ${WORK_DIR}/dns-work-dir/reverse.zone
 
     i=$(( ${i} + 1 ))
     j=$(( ${j} + 1 ))
   done
 fi
 
-cat ${OKD_LAB_PATH}/dns-work-dir/forward.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${DOMAIN}"
-cat ${OKD_LAB_PATH}/dns-work-dir/reverse.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}"
+cat ${WORK_DIR}/dns-work-dir/forward.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${DOMAIN}"
+cat ${WORK_DIR}/dns-work-dir/reverse.zone | ${SSH} root@${ROUTER} "cat >> /etc/bind/db.${NET_PREFIX_ARPA}"
 ${SSH} root@${ROUTER} "/etc/init.d/named stop && sleep 2 && /etc/init.d/named start && sleep 2"
 ${SSH} root@${EDGE_ROUTER} "/etc/init.d/named stop && sleep 2 && /etc/init.d/named start"
 ${SSH} root@${BASTION_HOST} "mkdir -p /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}"
-${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/ignition/*.ign root@${BASTION_HOST}:/usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/
+${SCP} -r ${WORK_DIR}/ipxe-work-dir/ignition/*.ign root@${BASTION_HOST}:/usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/
 ${SSH} root@${BASTION_HOST} "chmod 644 /usr/local/www/install/fcos/ignition/${CLUSTER_NAME}-${SUB_DOMAIN}/*"
-${SCP} -r ${OKD_LAB_PATH}/ipxe-work-dir/*.ipxe root@${ROUTER}:/data/tftpboot/ipxe/
+${SCP} -r ${WORK_DIR}/ipxe-work-dir/*.ipxe root@${ROUTER}:/data/tftpboot/ipxe/

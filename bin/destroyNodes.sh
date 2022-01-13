@@ -134,6 +134,7 @@ function validateAndSetVars() {
   CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${D_INDEX}].cluster-config-file" ${CONFIG_FILE})
   DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
   CLUSTER_NAME=$(yq e ".cluster.name" ${CLUSTER_CONFIG})
+  WORK_DIR=${OKD_LAB_PATH}/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}
 
   CP_COUNT=$(yq e ".control-plane.okd-hosts" ${CLUSTER_CONFIG} | yq e 'length' -)
   if [[ ${CP_COUNT} == "1" ]]
@@ -204,7 +205,7 @@ function deleteBootstrap() {
   if [[ $(yq e ".bootstrap.metal" ${CLUSTER_CONFIG}) == "true" ]]
   then
     kill $(ps -ef | grep qemu | grep bootstrap | awk '{print $2}')
-    rm -rf ${OKD_LAB_PATH}/bootstrap
+    rm -rf ${WORK_DIR}/bootstrap
   else
     host_name="${CLUSTER_NAME}-bootstrap"
     kvm_host=$(yq e ".bootstrap.kvm-host" ${CLUSTER_CONFIG})

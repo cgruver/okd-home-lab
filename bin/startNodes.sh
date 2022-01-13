@@ -72,6 +72,7 @@ SUB_DOMAIN=$(yq e ".sub-domain-configs.[${INDEX}].name" ${CONFIG_FILE})
 CLUSTER_CONFIG=$(yq e ".sub-domain-configs.[${INDEX}].cluster-config-file" ${CONFIG_FILE})
 CLUSTER_NAME=$(yq e ".cluster.name" ${CLUSTER_CONFIG})
 DOMAIN="${SUB_DOMAIN}.${LAB_DOMAIN}"
+WORK_DIR=${OKD_LAB_PATH}/${CLUSTER_NAME}-${SUB_DOMAIN}-${LAB_DOMAIN}
 
 if [[ ${BOOTSTRAP} == "true" ]]
 then
@@ -84,9 +85,9 @@ then
     root_vol=$(yq e ".bootstrap.node-spec.root_vol" ${CLUSTER_CONFIG})
     bridge_dev=$(yq e ".bootstrap.bridge-dev" ${CLUSTER_CONFIG})
 
-    mkdir -p ${OKD_LAB_PATH}/bootstrap
-    qemu-img create -f qcow2 ${OKD_LAB_PATH}/bootstrap/bootstrap-node.qcow2 ${root_vol}G
-    qemu-system-x86_64 -accel accel=hvf -m ${memory}M -smp ${cpu} -display none -nographic -drive file=${OKD_LAB_PATH}/bootstrap/bootstrap-node.qcow2,if=none,id=disk1  -device ide-hd,bus=ide.0,drive=disk1,id=sata0-0-0,bootindex=1 -boot n -netdev vde,id=nic0,sock=/var/run/vde.bridged.${bridge_dev}.ctl -device virtio-net-pci,netdev=nic0,mac=52:54:00:a1:b2:c3
+    mkdir -p ${WORK_DIR}/bootstrap
+    qemu-img create -f qcow2 ${WORK_DIR}/bootstrap/bootstrap-node.qcow2 ${root_vol}G
+    qemu-system-x86_64 -accel accel=hvf -m ${memory}M -smp ${cpu} -display none -nographic -drive file=${WORK_DIR}/bootstrap/bootstrap-node.qcow2,if=none,id=disk1  -device ide-hd,bus=ide.0,drive=disk1,id=sata0-0-0,bootindex=1 -boot n -netdev vde,id=nic0,sock=/var/run/vde.bridged.${bridge_dev}.ctl -device virtio-net-pci,netdev=nic0,mac=52:54:00:a1:b2:c3
   else
     kvm_host=$(yq e ".bootstrap.kvm-host" ${CLUSTER_CONFIG})
     startNode ${kvm_host} ${host_name}
