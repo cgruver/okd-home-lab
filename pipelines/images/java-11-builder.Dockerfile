@@ -1,7 +1,7 @@
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.4
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.5
 ARG MAVEN_VERSION=3.8.4
 ARG BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries
-ARG JAVA_PACKAGE=java-11-openjdk-headless
+ARG JAVA_PACKAGE=java-11-openjdk-devel
 ARG MANDREL_VERSION=21.3.0.0-Final
 ARG USER_HOME_DIR="/maven"
 ARG WORK_DIR="/workspace"
@@ -30,5 +30,6 @@ RUN microdnf install glibc-devel zlib-devel gcc libffi-devel libstdc++-devel gcc
 ENV MAVEN_HOME=/usr/share/maven
 ENV MAVEN_CONFIG="${USER_HOME_DIR}/.m2"
 ENV GRAALVM_HOME=${GRAALVM_DIR}
+ENV JAVA_HOME=/etc/alternatives/jre_11_openjdk
 
 VOLUME ${WORK_DIR}
