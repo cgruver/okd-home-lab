@@ -7,9 +7,13 @@ ARG USER_HOME_DIR="/maven"
 ARG WORK_DIR="/workspace"
 ARG GRAALVM_DIR=/opt/mandral
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
-RUN microdnf install glibc-devel zlib-devel gcc libffi-devel libstdc++-devel gcc-c++ glibc-langpack-en openssl curl ca-certificates git tar which ${JAVA_PACKAGE} shadow-utils\
+RUN microdnf install glibc-devel zlib-devel gcc libffi-devel libstdc++-devel gcc-c++ glibc-langpack-en openssl curl ca-certificates git tar which ${JAVA_PACKAGE} shadow-utils unzip\
     && microdnf update \
     && microdnf clean all \
+    && rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
+    && microdnf install jq \
+    && microdnf clean all \
+    && rm -rf /var/cache/yum \
     && mkdir -p ${USER_HOME_DIR} \
     && chown 1001 ${USER_HOME_DIR} \
     && chmod "g+rwX" ${USER_HOME_DIR} \
@@ -26,7 +30,10 @@ RUN microdnf install glibc-devel zlib-devel gcc libffi-devel libstdc++-devel gcc
     && ln -s /usr/share/maven/bin/mvn /usr/bin/mvn \
     && mkdir -p ${GRAALVM_DIR} \
     && curl -fsSL -o /tmp/mandrel-java11-linux-amd64-${MANDREL_VERSION}.tar.gz https://github.com/graalvm/mandrel/releases/download/mandrel-${MANDREL_VERSION}/mandrel-java11-linux-amd64-${MANDREL_VERSION}.tar.gz \
-    && tar xzf /tmp/mandrel-java11-linux-amd64-${MANDREL_VERSION}.tar.gz -C ${GRAALVM_DIR} --strip-components=1
+    && tar xzf /tmp/mandrel-java11-linux-amd64-${MANDREL_VERSION}.tar.gz -C ${GRAALVM_DIR} --strip-components=1 \
+    && curl -fsSL -o /tmp/awscliv2.zip https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip \
+    && unzip /tmp/awscliv2.zip -d /tmp \
+    && /tmp/aws/install 
 ENV MAVEN_HOME=/usr/share/maven
 ENV MAVEN_CONFIG="${USER_HOME_DIR}/.m2"
 ENV GRAALVM_HOME=${GRAALVM_DIR}
