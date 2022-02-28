@@ -33,7 +33,8 @@ RUN microdnf install glibc-devel zlib-devel gcc libffi-devel libstdc++-devel gcc
     && tar xzf /tmp/mandrel-java11-linux-amd64-${MANDREL_VERSION}.tar.gz -C ${GRAALVM_DIR} --strip-components=1 \
     && curl -fsSL -o /tmp/awscliv2.zip https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip \
     && unzip /tmp/awscliv2.zip -d /tmp \
-    && /tmp/aws/install 
+    && /tmp/aws/install \
+    && rm -rf /tmp/aws
 ENV MAVEN_HOME=/usr/share/maven
 ENV MAVEN_CONFIG="${USER_HOME_DIR}/.m2"
 ENV GRAALVM_HOME=${GRAALVM_DIR}
