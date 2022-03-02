@@ -78,5 +78,5 @@ spec:
       GIT_CREDS="$(cat /tekton/creds-secrets/gitea-secret/username):$(cat /tekton/creds-secrets/gitea-secret/password)"
       API_PATH="/api/v1/repos/${PROJECT_PATH}/hooks"
       API_URL="${GIT_URL}${API_PATH}"
-      curl --location --request POST ${API_URL} -u ${GIT_CREDS} --header 'Content-Type: application/json' --header 'Content-Type: application/json' --data-raw "{\"active\":true,\"branch_filter\":\"$(params.git-branch)\",\"config\":{\"content_type\":\"json\",\"url\":\"${HOOK_URL}\",\"http_method\": \"post\",\"secret\":\"${SECRET}\"},\"events\": [\"push\"],\"type\": \"gitea\"}"
+      curl --location --request POST ${API_URL} -u ${GIT_CREDS} --header 'Content-Type: application/json' --data-raw "{\"active\":true,\"branch_filter\":\"$(params.git-branch)\",\"config\":{\"content_type\":\"json\",\"url\":\"${HOOK_URL}\",\"http_method\": \"post\",\"secret\":\"${SECRET}\"},\"events\": [\"push\"],\"type\": \"gitea\"}"
       echo -----------------------------------

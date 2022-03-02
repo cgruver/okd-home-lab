@@ -3,11 +3,11 @@ ARG MAVEN_VERSION=3.8.4
 ARG BASE_URL=https://apache.osuosl.org/maven/maven-3/${MAVEN_VERSION}/binaries
 ARG JAVA_PACKAGE=java-11-openjdk-devel
 ARG MANDREL_VERSION=21.3.0.0-Final
-ARG USER_HOME_DIR="/maven"
+ARG USER_HOME_DIR="/workspace"
 ARG WORK_DIR="/workspace"
 ARG GRAALVM_DIR=/opt/mandral
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
-RUN microdnf install glibc-devel zlib-devel gcc libffi-devel libstdc++-devel gcc-c++ glibc-langpack-en openssl curl ca-certificates git tar which ${JAVA_PACKAGE} shadow-utils unzip\
+RUN microdnf install glibc-devel zlib-devel gcc libffi-devel libstdc++-devel gcc-c++ glibc-langpack-en openssl curl ca-certificates git tar which ${JAVA_PACKAGE} shadow-utils unzip vim bash ps\
     && microdnf update \
     && microdnf clean all \
     && rpm -ivh https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm \
@@ -39,5 +39,7 @@ ENV MAVEN_HOME=/usr/share/maven
 ENV MAVEN_CONFIG="${USER_HOME_DIR}/.m2"
 ENV GRAALVM_HOME=${GRAALVM_DIR}
 ENV JAVA_HOME=/etc/alternatives/jre_11_openjdk
+ENV HOME=${USER_HOME_DIR}
+ENV SHELL=/bin/bash
 
 VOLUME ${WORK_DIR}
